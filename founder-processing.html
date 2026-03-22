@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nextify • Processing</title>
+  <!-- Include TailwindCSS for consistent styling across Nextify pages -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    .progress-bar {
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <!-- Top navigation: Nextify logo and Back link -->
+  <header class="bg-white shadow-sm">
+    <div class="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
+      <!-- Logo links to your GitHub Pages dashboard -->
+      <a href="https://donnaoftadeh.github.io/Nextify-Dashboard/index.html" class="text-xl font-bold text-blue-700 hover:text-blue-800">Nextify</a>
+      <!-- Back link with arrow on the right -->
+      <a href="roles-founder.html" class="text-sm text-gray-500 hover:text-gray-700">&larr; Back</a>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-4 py-10">
+    <!-- Page title and description -->
+    <h1 class="text-2xl md:text-3xl font-bold text-gray-900 mb-3">Processing your Idea</h1>
+    <p class="text-gray-600 mb-6">Our agents are working on your submission. This may take a few moments.</p>
+
+    <!-- API health notification (shown only if unreachable) -->
+    <div id="apiBadge" class="hidden mb-4 rounded-md px-4 py-3 text-sm bg-red-100 text-red-700 border border-red-200">
+      API not reachable
+    </div>
+
+    <!-- Overall status and progress bar -->
+    <div class="mb-8">
+      <p class="text-gray-800">Status: <span id="status" class="font-medium">—</span></p>
+      <p class="text-gray-800">Current stage: <span id="step" class="font-medium">—</span></p>
+      <div class="w-full bg-gray-200 rounded h-3 mt-2">
+        <div id="overallBar" class="bg-blue-600 h-3 rounded progress-bar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Dynamic container for per-stage progress bars -->
+    <div id="stagesContainer" class="space-y-6"></div>
+
+    <!-- Action buttons at the bottom -->
+    <div class="mt-10 flex items-center gap-4">
+      <button id="cancelBtn" type="button"
+              class="px-6 py-3 rounded-full border border-blue-600 text-blue-600 font-medium hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              onclick="window.location.href='roles-founder.html'">
+        Cancel
+      </button>
+      <button id="downloadBtn"
+              class="px-6 py-3 rounded-full bg-blue-600 text-white font-medium hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled>
+        Download report
+      </button>
+    </div>
+  </main>
+
+  <script>
+    // Base API URL (ngrok tunnel). Change only if your tunnel changes.
+    const NEXTIFY_API_BASE = localStorage.getItem("NEXTIFY_API_BASE") ||
+      "https://gilbert-unabridged-rumbly.ngrok-free.app";
+    // Append ngrok skip parameter to bypass warning page
+    const api = (path) => `${NEXTIFY_API_BASE}${path}${path.includes('?') ? '&' : '?'}ngrok-skip-browser-warning=true`;
+
+    // Define agent stages and descriptions for each journey. Only 'idea' is populated here.
+    const AGENTS_BY_JOURNEY = {
+      idea: [
+        { title: "Problem Snapshot", desc: "Summarize the problem and Jobs to be Done for key user roles." },
+        { title: "Brainstorm Uses", desc: "List possible use cases and current behaviors." },
+        { title: "Audience & Early Adopters", desc: "Identify key segments and early adopters with quick market notes." },
+        { title: "Competitors & Market Size", desc: "List competitors and estimate TAM/SAM/SOM with assumptions." },
+        { title: "Assumptions, Risks & Tests", desc: "Identify critical assumptions and risks; propose lean tests." },
+        { title: "Product & Feature Candidates", desc: "Describe product concepts and features; compute RICE scores." },
+        { title: "Lean OKRs", desc: "Create Lean Objectives and Key Results (OKRs)." },
+        { title: "Customer Journey Storyboard", desc: "Describe the first cohort’s journey through discover, activate and outcome phases." },
+        { title: "Tools to Use", desc: "List practical tools to support discovery, build and measurement." },
+        { title: "Synthesis", desc: "Synthesize the insights into a concise summary." },
+        { title: "Three-Month Plan", desc: "Outline a crisp three-month milestone plan." },
+      ],
+      company: [],
+      product: [],
+      industry: [],
+    };
+
+    // Show API connectivity status
+    async function checkApi() {
+      const badge = document.getElementById('apiBadge');
+      try {
+        const res = await fetch(api('/'), { cache: 'no-store', mode: 'cors' });
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (!res.ok || !ct.includes('json')) {
+          badge.classList.remove('hidden');
+          return;
+        }
+        const data = await res.json();
+        if (!data || data.ok !== true) {
+          badge.classList.remove('hidden');
+        }
+      } catch (err) {
+        badge.classList.remove('hidden');
+      }
+    }
+    checkApi();
+
+    // Read job and journey from query parameters
+    const params = new URLSearchParams(window.location.search);
+    const jobId = params.get('job_id');
+    const journey = (params.get('journey') || 'idea').toLowerCase();
+    const stages = AGENTS_BY_JOURNEY[journey] || [];
+
+    // Render stage list
+    function renderStages() {
+      const container = document.getElementById('stagesContainer');
+      container.innerHTML = '';
+      stages.forEach((stage, idx) => {
+        const row = document.createElement('div');
+        row.innerHTML = `
+          <div class="font-semibold text-gray-900">${stage.title}</div>
+          <div class="text-gray-600 text-sm mb-2">${stage.desc}</div>
+          <div class="w-full bg-gray-200 rounded h-3">
+            <div id="stageBar${idx}" class="bg-blue-600 h-3 rounded progress-bar" style="width:0%"></div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+    renderStages();
+
+    // Poll job status from backend
+    async function poll() {
+      if (!jobId) return;
+      try {
+        const res = await fetch(api(`/api/status/${jobId}`), { cache: 'no-store' });
+        const data = await res.json();
+        // Update status and step text
+        document.getElementById('status').textContent = data.status || '—';
+        document.getElementById('step').textContent = data.step || '—';
+        const pct = data.progress || 0;
+        // Overall bar
+        document.getElementById('overallBar').style.width = pct + '%';
+        // Per-stage progress bars
+        const total = stages.length || 1;
+        const segment = 100 / total;
+        const stageProgress = pct / segment;
+        stages.forEach((_, i) => {
+          const bar = document.getElementById(`stageBar${i}`);
+          if (!bar) return;
+          let width;
+          if (stageProgress >= i + 1) {
+            width = 100;
+          } else if (stageProgress <= i) {
+            width = 0;
+          } else {
+            width = (stageProgress - i) * 100;
+          }
+          bar.style.width = width + '%';
+        });
+        // Enable download button when ready
+        if (data.ready) {
+          const btn = document.getElementById('downloadBtn');
+          btn.disabled = false;
+          btn.onclick = () => window.open(api(`/api/download/${jobId}`), '_blank');
+          return;
+        }
+        setTimeout(poll, 1500);
+      } catch (err) {
+        console.error('Polling error:', err);
+        setTimeout(poll, 3000);
+      }
+    }
+    poll();
+  </script>
+</body>
+</html>

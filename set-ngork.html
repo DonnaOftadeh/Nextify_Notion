@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Set Nextify API URL</title></head>
+<body>
+  <h1>Set Nextify API URL</h1>
+  <script>
+    (function(){
+      const p = new URLSearchParams(location.search);
+      const url = (p.get("url")||"").trim();
+      if (url.startsWith("https://")) {
+        localStorage.setItem("NEXTIFY_API_BASE", url);
+        document.write(`<p>Saved API: <code>${url}</code></p><p><a href="roles-founder.html">Back</a></p>`);
+      } else {
+        document.write(`
+          <form onsubmit="localStorage.setItem('NEXTIFY_API_BASE', this.url.value.trim()); location.href='roles-founder.html'; return false;">
+            <input name="url" required placeholder="https://xxxx.ngrok-free.app" style="width:360px; padding:8px"/>
+            <button type="submit">Save</button>
+          </form>
+        `);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>Nextify - Global Innovation Ecosystem</title>
+
+  <!-- SEO + Social -->
+  <meta name="description" content="Nextify connects dreamers, builders, and funders in a global AI-powered innovation ecosystem." />
+  <meta property="og:title" content="Nextify — Global Innovation Ecosystem" />
+  <meta property="og:description" content="Turn any idea into a validated product with AI, connections, and tools." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://donnaoftadeh.github.io/Nextify-Dashboard/" />
+  <meta property="og:image" content="https://donnaoftadeh.github.io/Nextify-Dashboard/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <!-- Chart.js (deferred; remove if unused) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, #1e40af 0%, #3730a3 50%, #1e3a8a 100%); }
+    .gradient-text { background: linear-gradient(135deg, #2563eb 0%, #3730a3 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .card-hover { transition: all 0.3s ease; }
+    .card-hover:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(37, 99, 235, 0.1); }
+    .pulse-animation { animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    .float-animation { animation: float 6s ease-in-out infinite; }
+    @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-15px); } }
+    .icon-glow { filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.2)); }
+    .chart-container { position: relative; height: 300px; }
+    .stat-counter { font-size: 2.5rem; font-weight: 800; }
+    .progress-bar { animation: progressFill 2s ease-out forwards; }
+    @keyframes progressFill { from { width: 0%; } to { width: var(--progress); } }
+    .section-padding { padding: 3rem 0; }
+    @media (min-width: 768px) { .section-padding { padding: 4rem 0; } }
+    @media (min-width: 1024px) { .section-padding { padding: 5rem 0; } }
+    .container-spacing { max-width: 1200px; margin: 0 auto; padding: 0 1rem; }
+    @media (min-width: 640px) { .container-spacing { padding: 0 1.5rem; } }
+    @media (min-width: 768px) { .container-spacing { padding: 0 2rem; } }
+
+    .news-ticker { animation: scroll-left 30s linear infinite; }
+    @keyframes scroll-left { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+
+    /* Sticky nav anchor offset for in-page links */
+    [id] { scroll-margin-top: 6rem; }
+
+    /* Reduced motion accessibility */
+    @media (prefers-reduced-motion: reduce) {
+      .news-ticker { animation: none; transform: none; }
+      .pulse-animation, .float-animation { animation: none; }
+      .card-hover:hover { transform: none; }
+    }
+
+    /* Focus visibility */
+    .focusable:focus { outline: 2px solid #2563eb; outline-offset: 2px; }
+  </style>
+</head>
+<body class="bg-white">
+  <!-- Navigation -->
+  <nav class="bg-white/95 backdrop-blur-sm shadow-sm fixed w-full top-0 z-50">
+    <div class="container-spacing">
+      <div class="flex justify-between items-center h-16 md:h-20">
+        <div class="flex items-center">
+          <div class="text-xl md:text-2xl font-bold gradient-text">Nextify</div>
+        </div>
+
+        <!-- Mobile menu button -->
+        <div class="md:hidden">
+          <button id="mobile-menu-btn" class="text-gray-600 hover:text-blue-600 p-2 focusable" aria-label="Open menu">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Desktop menu -->
+        <div class="hidden md:flex items-center space-x-4 lg:space-x-8">
+          <a href="#ecosystem" class="text-gray-600 hover:text-blue-600 font-medium transition-colors text-sm md:text-base focusable">Ecosystem</a>
+          <a href="#who-we-serve" class="text-gray-600 hover:text-blue-600 font-medium transition-colors text-sm md:text-base focusable">Who We Serve</a>
+          <a href="#how-it-works" class="text-gray-600 hover:text-blue-600 font-medium transition-colors text-sm md:text-base focusable">How It Works</a>
+          <a href="#pricing" class="text-gray-600 hover:text-blue-600 font-medium transition-colors text-sm md:text-base focusable">Pricing</a>
+
+          <!-- CTA group -->
+          <div class="flex items-center space-x-3 lg:space-x-4">
+            <!-- Join Community (redirects to roles.html) -->
+            <a aria-label="Join Community" href="roles.html"
+               class="focusable bg-blue-600 text-white px-5 sm:px-6 md:px-7 lg:px-8 
+                      py-2.5 sm:py-3 rounded-full font-semibold hover:bg-blue-700 
+                      transition-colors shadow-md md:shadow-lg 
+                      text-[13px] sm:text-sm md:text-base">
+              Join Community
+            </a>
+
+            <!-- Developer Console (link to Streamlit) -->
+            <a aria-label="Open Developer Console" href="https://nextify-dashboard-100.streamlit.app/" target="_blank" rel="noopener"
+               class="focusable bg-blue-600 text-white px-5 sm:px-6 md:px-7 lg:px-8 py-2.5 sm:py-3 rounded-full font-semibold hover:bg-blue-700 transition-colors shadow-md md:shadow-lg text-[13px] sm:text-sm md:text-base">
+              Developer Console
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile menu -->
+      <div id="mobile-menu" class="md:hidden hidden bg-white border-t border-gray-200 py-4">
+        <div class="flex flex-col space-y-3">
+          <a href="#ecosystem" class="text-gray-600 hover:text-blue-600 font-medium transition-colors px-4 py-2 focusable">Ecosystem</a>
+          <a href="#who-we-serve" class="text-gray-600 hover:text-blue-600 font-medium transition-colors px-4 py-2 focusable">Who We Serve</a>
+          <a href="#how-it-works" class="text-gray-600 hover:text-blue-600 font-medium transition-colors px-4 py-2 focusable">How It Works</a>
+          <a href="#pricing" class="text-gray-600 hover:text-blue-600 font-medium transition-colors px-4 py-2 focusable">Pricing</a>
+          <div class="px-4 pt-1">
+          <!-- Join Community (mobile, full width) -->
+          <a aria-label="Join Community" href="roles.html"
+             class="focusable w-full bg-blue-600 text-white py-3.5 rounded-full 
+                    font-semibold hover:bg-blue-700 transition-colors 
+                    shadow-lg text-base">
+            Join Community
+          </a>
+
+            <!-- Developer Console -->
+            <a aria-label="Open Developer Console" href="https://nextify-dashboard-100.streamlit.app/" target="_blank" rel="noopener"
+               class="focusable mt-3 w-full inline-block text-center bg-blue-600 text-white py-3.5 rounded-full font-semibold hover:bg-blue-700 transition-colors shadow-lg text-base">
+              Developer Console
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+ <!-- Hero Section -->
+<section class="pt-20 md:pt-28 lg:pt-32 pb-12 md:pb-16 lg:pb-20 gradient-bg">
+  <div class="container-spacing">
+    <div class="grid lg:grid-cols-2 gap-8 md:gap-12 lg:gap-16 items-center">
+      <div class="space-y-6 md:space-y-8 text-center lg:text-left">
+        <h1 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-white leading-tight">
+          Innovation<br class="hidden sm:block">for Everyone,<br class="hidden sm:block"><span class="text-blue-200">Everywhere</span>
+        </h1>
+        <div class="space-y-4 md:space-y-6">
+          <p class="text-base sm:text-lg md:text-xl text-blue-100 leading-relaxed max-w-2xl mx-auto lg:mx-0">
+            From a curious kid in Nigeria to a Silicon Valley founder to global investors—our AI ecosystem connects every innovator with the tools they need to succeed.
+          </p>
+          <p class="text-sm sm:text-base md:text-lg text-blue-200 leading-relaxed max-w-2xl mx-auto lg:mx-0">
+            Transform any idea into a validated product. Connect with the right people. Build the future together.
+          </p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-4 md:gap-6 pt-2 md:pt-4 justify-center lg:justify-start">
+          <!-- CHANGED: button -> anchor linking to roles.html -->
+          <a href="roles.html"
+             class="focusable bg-white text-blue-600 px-6 sm:px-8 md:px-10 py-3 md:py-4 rounded-full text-base md:text-lg font-semibold hover:bg-gray-50 transition-all shadow-xl">
+            Start Your Journey
+          </a>
+          <button class="focusable border-2 border-white text-white px-6 sm:px-8 md:px-10 py-3 md:py-4 rounded-full text-base md:text-lg font-semibold hover:bg-white hover:text-blue-600 transition-all">
+            See How It Works
+          </button>
+        </div>
+      </div>
+
+        <!-- Global Innovation Visualization -->
+        <div class="float-animation mt-8 lg:mt-0">
+          <div class="bg-white/10 backdrop-blur-sm rounded-2xl md:rounded-3xl p-4 sm:p-6 md:p-8 lg:p-10 border border-white/20 shadow-2xl">
+            <!-- Live Innovation Feed -->
+            <div class="text-center mb-6 md:mb-8">
+              <h3 class="text-white/80 font-medium text-sm md:text-base lg:text-lg mb-3 md:mb-4">Live Innovation Feed</h3>
+              <div class="relative">
+                <div class="w-full h-16 md:h-20 bg-white/5 rounded-lg md:rounded-xl relative overflow-hidden border border-white/10">
+                  <div class="absolute inset-0 flex items-center">
+                    <div class="news-ticker flex items-center space-x-4 md:space-x-6 whitespace-nowrap">
+                      <div class="flex items-center space-x-1 md:space-x-2 bg-white/10 rounded-full px-2 md:px-3 py-1 backdrop-blur-sm">
+                        <span class="text-sm md:text-lg">🚀</span>
+                        <span class="text-white/90 text-xs font-medium">AgTech startup raises $2M in Lagos</span>
+                      </div>
+                      <div class="flex items-center space-x-1 md:space-x-2 bg-white/10 rounded-full px-2 md:px-3 py-1 backdrop-blur-sm">
+                        <span class="text-sm md:text-lg">💡</span>
+                        <span class="text-white/90 text-xs font-medium">AI healthcare solution launched in Mumbai</span>
+                      </div>
+                      <div class="flex items-center space-x-1 md:space-x-2 bg-white/10 rounded-full px-2 md:px-3 py-1 backdrop-blur-sm">
+                        <span class="text-sm md:text-lg">🌱</span>
+                        <span class="text-white/90 text-xs font-medium">CleanTech accelerator opens in São Paulo</span>
+                      </div>
+                      <div class="flex items-center space-x-1 md:space-x-2 bg-white/10 rounded-full px-2 md:px-3 py-1 backdrop-blur-sm">
+                        <span class="text-sm md:text-lg">🔬</span>
+                        <span class="text-white/90 text-xs font-medium">Biotech breakthrough in Tel Aviv</span>
+                      </div>
+                      <div class="flex items-center space-x-1 md:space-x-2 bg-white/10 rounded-full px-2 md:px-3 py-1 backdrop-blur-sm">
+                        <span class="text-sm md:text-lg">📱</span>
+                        <span class="text-white/90 text-xs font-medium">FinTech unicorn emerges from Nairobi</span>
+                      </div>
+                      <div class="flex items-center space-x-1 md:space-x-2 bg-white/10 rounded-full px-2 md:px-3 py-1 backdrop-blur-sm">
+                        <span class="text-sm md:text-lg">🎓</span>
+                        <span class="text-white/90 text-xs font-medium">Student startup wins $500K in Berlin</span>
+                      </div>
+                      <div class="flex items-center space-x-1 md:space-x-2 bg-white/10 rounded-full px-2 md:px-3 py-1 backdrop-blur-sm">
+                        <span class="text-sm md:text-lg">🌍</span>
+                        <span class="text-white/90 text-xs font-medium">Global VC fund invests in 12 countries</span>
+                      </div>
+                      <div class="flex items-center space-x-1 md:space-x-2 bg-white/10 rounded-full px-2 md:px-3 py-1 backdrop-blur-sm">
+                        <span class="text-sm md:text-lg">⚡</span>
+                        <span class="text-white/90 text-xs font-medium">Energy startup scales to 50 cities</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="absolute left-0 top-0 w-8 md:w-12 h-full bg-gradient-to-r from-white/5 to-transparent z-10"></div>
+                  <div class="absolute right-0 top-0 w-8 md:w-12 h-full bg-gradient-to-l from-white/5 to-transparent z-10"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Metrics -->
+            <div class="grid grid-cols-2 gap-3 md:gap-4 lg:gap-6">
+              <div class="bg-white/20 rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 backdrop-blur-sm">
+                <div class="flex items-center mb-2 md:mb-4">
+                  <div class="w-8 h-8 md:w-10 lg:w-12 md:h-10 lg:h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg md:rounded-xl flex items-center justify-center mr-2 md:mr-3">
+                    <i class="fas fa-chart-line text-white text-xs md:text-sm lg:text-base"></i>
+                  </div>
+                  <div>
+                    <h4 class="text-white font-bold text-xs md:text-sm">Market Size</h4>
+                    <p class="text-white/70 text-xs">Global innovation</p>
+                  </div>
+                </div>
+                <div class="text-lg md:text-xl lg:text-2xl font-bold text-white">$1.2T</div>
+                <p class="text-xs text-white/80">Global innovation market</p>
+              </div>
+
+              <div class="bg-white/20 rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 backdrop-blur-sm">
+                <div class="flex items-center mb-2 md:mb-4">
+                  <div class="w-8 h-8 md:w-10 lg:w-12 md:h-10 lg:h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg md:rounded-xl flex items-center justify-center mr-2 md:mr-3">
+                    <i class="fas fa-target text-white text-xs md:text-sm lg:text-base"></i>
+                  </div>
+                  <div>
+                    <h4 class="text-white font-bold text-xs md:text-sm">Success Rate</h4>
+                    <p class="text-white/70 text-xs">With AI guidance</p>
+                  </div>
+                </div>
+                <div class="text-lg md:text-xl lg:text-2xl font-bold text-white">22%</div>
+                <p class="text-xs text-white/80">vs 8% traditional</p>
+              </div>
+
+              <div class="bg-white/20 rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 backdrop-blur-sm">
+                <div class="flex items-center mb-2 md:mb-4">
+                  <div class="w-8 h-8 md:w-10 lg:w-12 md:h-10 lg:h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-lg md:rounded-xl flex items-center justify-center mr-2 md:mr-3">
+                    <i class="fas fa-coins text-white text-xs md:text-sm lg:text-base"></i>
+                  </div>
+                  <div>
+                    <h4 class="text-white font-bold text-xs md:text-sm">Funding Pool</h4>
+                    <p class="text-white/70 text-xs">Ready to deploy</p>
+                  </div>
+                </div>
+                <div class="text-lg md:text-xl lg:text-2xl font-bold text-white">$180B</div>
+                <p class="text-xs text-white/80">Available globally</p>
+              </div>
+
+              <div class="bg-white/20 rounded-xl md:rounded-2xl p-3 md:p-4 lg:p-6 backdrop-blur-sm">
+                <div class="flex items-center mb-2 md:mb-4">
+                  <div class="w-8 h-8 md:w-10 lg:w-12 md:h-10 lg:h-12 bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg md:rounded-xl flex items-center justify-center mr-2 md:mr-3">
+                    <i class="fas fa-clock text-white text-xs md:text-sm lg:text-base"></i>
+                  </div>
+                  <div>
+                    <h4 class="text-white font-bold text-xs md:text-sm">Time Saved</h4>
+                    <p class="text-white/70 text-xs">Faster to market</p>
+                  </div>
+                </div>
+                <div class="text-lg md:text-xl lg:text-2xl font-bold text-white">60%</div>
+                <p class="text-xs text-white/80">Faster to market</p>
+              </div>
+            </div>
+
+            <!-- Flow Pills -->
+            <div class="mt-6 md:mt-8 flex flex-wrap items-center justify-center gap-1 md:gap-2">
+              <div class="flex items-center space-x-1 bg-white/20 rounded-full px-2 py-1"><span class="text-white text-xs font-medium">📅 Discover</span></div>
+              <i class="fas fa-arrow-right text-white/60 text-xs"></i>
+              <div class="flex items-center space-x-1 bg-white/20 rounded-full px-2 py-1"><span class="text-white text-xs font-medium">🌍 AI Dive</span></div>
+              <i class="fas fa-arrow-right text-white/60 text-xs"></i>
+              <div class="flex items-center space-x-1 bg-white/20 rounded-full px-2 py-1"><span class="text-white text-xs font-medium">🔗 Match</span></div>
+              <i class="fas fa-arrow-right text-white/60 text-xs"></i>
+              <div class="flex items-center space-x-1 bg-white/20 rounded-full px-2 py-1"><span class="text-white text-xs font-medium">🔧 Build</span></div>
+              <i class="fas fa-arrow-right text-white/60 text-xs"></i>
+              <div class="flex items-center space-x-1 bg-white/20 rounded-full px-2 py-1"><span class="text-white text-xs font-medium">📋 Test</span></div>
+              <i class="fas fa-arrow-right text-white/60 text-xs"></i>
+              <div class="flex items-center space-x-1 bg-white/20 rounded-full px-2 py-1"><span class="text-white text-xs font-medium">⭐ Launch</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- The Problem -->
+  <section class="section-padding bg-gray-50">
+    <div class="container-spacing">
+      <div class="text-center mb-12 md:mb-16">
+        <h2 class="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-6 md:mb-8">
+          Innovation Shouldn't Be Limited by Geography or Resources
+        </h2>
+        <p class="text-base sm:text-lg md:text-xl text-gray-600 max-w-4xl mx-auto leading-relaxed">
+          Today, brilliant ideas die because innovators can't access the right tools, connections, or funding. 
+          We're changing that by creating a global ecosystem where anyone, anywhere can turn their vision into reality.
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-8 md:gap-12 mt-12 md:mt-16">
+        <div class="text-center">
+          <div class="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-gradient-to-br from-red-50 to-red-100 rounded-2xl md:rounded-3xl flex items-center justify-center mx-auto mb-6 md:mb-8 shadow-lg icon-glow">
+            <i class="fas fa-globe-americas text-red-500 text-xl sm:text-2xl md:text-3xl"></i>
+          </div>
+          <h3 class="font-bold text-gray-900 mb-3 md:mb-4 text-lg md:text-xl">Geographic Barriers</h3>
+          <p class="text-gray-600 leading-relaxed text-sm sm:text-base md:text-lg">
+            A brilliant student in Lagos has the same potential as one in Silicon Valley, but lacks access to the same resources and networks.
+          </p>
+        </div>
+
+        <div class="text-center">
+          <div class="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl md:rounded-3xl flex items-center justify-center mx-auto mb-6 md:mb-8 shadow-lg icon-glow">
+            <i class="fas fa-link text-orange-500 text-xl sm:text-2xl md:text-3xl"></i>
+          </div>
+          <h3 class="font-bold text-gray-900 mb-3 md:mb-4 text-lg md:text-xl">Disconnected Players</h3>
+          <p class="text-gray-600 leading-relaxed text-sm sm:text-base md:text-lg">
+            Innovators, investors, and accelerators operate in silos, missing countless opportunities for collaboration and growth.
+          </p>
+        </div>
+
+        <div class="text-center">
+          <div class="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl md:rounded-3xl flex items-center justify-center mx-auto mb-6 md:mb-8 shadow-lg icon-glow">
+            <i class="fas fa-tools text-blue-500 text-xl sm:text-2xl md:text-3xl"></i>
+          </div>
+          <h3 class="font-bold text-gray-900 mb-3 md:mb-4 text-lg md:text-xl">Complex Tools</h3>
+          <p class="text-gray-600 leading-relaxed text-sm sm:text-base md:text-lg">
+            Innovation requires expensive consultants, complex software, and specialized knowledge that most people can't access.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Our Vision -->
+  <section id="ecosystem" class="section-padding bg-white">
+    <div class="container-spacing">
+      <div class="text-center mb-20">
+        <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-8">
+          One Ecosystem, Infinite Possibilities
+        </h2>
+        <p class="text-xl text-gray-600 max-w-4xl mx-auto leading-relaxed">
+          Nextify connects every player in the innovation journey—from dreamers to funders—in a single, 
+          intelligent platform that makes innovation accessible to everyone, everywhere.
+        </p>
+      </div>
+
+      <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-12 mb-16">
+        <div class="space-y-12">
+          <!-- Top -->
+          <div class="text-center">
+            <div class="bg-white rounded-3xl p-8 shadow-xl max-w-md mx-auto">
+              <div class="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fas fa-network-wired text-white text-2xl"></i>
+              </div>
+              <h3 class="text-2xl font-bold text-gray-900 mb-4">Nextify AI Ecosystem</h3>
+              <p class="text-gray-600 mb-6">Intelligent matching, validation, and growth acceleration</p>
+              <div class="space-y-3">
+                <div class="flex items-center justify-center space-x-2">
+                  <div class="w-2 h-2 bg-blue-400 rounded-full pulse-animation"></div>
+                  <span class="text-sm text-gray-600">Smart Matching</span>
+                </div>
+                <div class="flex items-center justify-center space-x-2">
+                  <div class="w-2 h-2 bg-green-400 rounded-full pulse-animation" style="animation-delay: 0.5s;"></div>
+                  <span class="text-sm text-gray-600">AI Validation</span>
+                </div>
+                <div class="flex items-center justify-center space-x-2">
+                  <div class="w-2 h-2 bg-purple-400 rounded-full pulse-animation" style="animation-delay: 1s;"></div>
+                  <span class="text-sm text-gray-600">Growth Tools</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom: Two columns -->
+          <div class="grid lg:grid-cols-2 gap-12 items-start">
+            <!-- Left -->
+            <div class="space-y-8">
+              <div class="text-center">
+                <h3 class="text-2xl font-bold text-gray-900 mb-6">Individual Innovators</h3>
+              </div>
+              <div class="space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-lg card-hover">
+                  <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-xl flex items-center justify-center mr-4">
+                      <span class="text-2xl">👶</span>
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-gray-900">Young Dreamers</h4>
+                      <p class="text-sm text-gray-600">Kids & students worldwide</p>
+                    </div>
+                  </div>
+                  <p class="text-sm text-gray-700">Turn curiosity into validated concepts with AI guidance</p>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-lg card-hover">
+                  <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center mr-4">
+                      <span class="text-2xl">👨‍💻</span>
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-gray-900">Solo Founders</h4>
+                      <p class="text-sm text-gray-600">Independent entrepreneurs</p>
+                    </div>
+                  </div>
+                  <p class="text-sm text-gray-700">Build, validate, and scale with AI co-founder support</p>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-lg card-hover">
+                  <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center mr-4">
+                      <span class="text-2xl">🔬</span>
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-gray-900">Researchers</h4>
+                      <p class="text-sm text-gray-600">Academic innovators</p>
+                    </div>
+                  </div>
+                  <p class="text-sm text-gray-700">Transform research into market-ready solutions</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right -->
+            <div class="space-y-8">
+              <div class="text-center">
+                <h3 class="text-2xl font-bold text-gray-900 mb-6">Ecosystem Partners</h3>
+              </div>
+              <div class="space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-lg card-hover">
+                  <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center mr-4">
+                      <span class="text-2xl">🚀</span>
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-gray-900">Accelerators</h4>
+                      <p class="text-sm text-gray-600">Global startup programs</p>
+                    </div>
+                  </div>
+                  <p class="text-sm text-gray-700">Scale mentorship with AI-powered insights</p>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-lg card-hover">
+                  <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 rounded-xl flex items-center justify-center mr-4">
+                      <span class="text-2xl">💰</span>
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-gray-900">Investors</h4>
+                      <p class="text-sm text-gray-600">VCs & Angel investors</p>
+                    </div>
+                  </div>
+                  <p class="text-sm text-gray-700">Discover and evaluate opportunities globally</p>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-lg card-hover">
+                  <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-gradient-to-br from-orange-100 to-orange-200 rounded-xl flex items-center justify-center mr-4">
+                      <span class="text-2xl">🏢</span>
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-gray-900">Corporates</h4>
+                      <p class="text-sm text-gray-600">Innovation departments</p>
+                    </div>
+                  </div>
+                  <p class="text-sm text-gray-700">Source breakthrough innovations externally</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>      
+      </div>
+    </div>
+  </section>
+
+  <!-- Who We Serve -->
+  <section id="who-we-serve" class="section-padding bg-gray-50">
+    <div class="container-spacing">
+      <div class="text-center mb-20">
+        <h2 class="text-4xl font-bold text-gray-900 mb-8">Built for Every Innovator</h2>
+        <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+          Whether you're 12 or 50, in Lagos or London, our platform adapts to your needs and connects you with the right opportunities.
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-10">
+        <div class="text-center group">
+          <div class="w-28 h-28 bg-gradient-to-br from-yellow-100 to-yellow-200 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg icon-glow group-hover:scale-110 transition-transform">
+            <span class="text-4xl">🌟</span>
+          </div>
+          <h3 class="font-bold text-gray-900 mb-4 text-xl">Young Innovators</h3>
+          <p class="text-gray-600 leading-relaxed">
+            Students and young dreamers who want to turn their ideas into reality, regardless of their background or location.
+          </p>
+        </div>
+
+        <div class="text-center group">
+          <div class="w-28 h-28 bg-gradient-to-br from-blue-100 to-blue-200 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg icon-glow group-hover:scale-110 transition-transform">
+            <span class="text-4xl">👨‍💼</span>
+          </div>
+          <h3 class="font-bold text-gray-900 mb-4 text-xl">Solo Entrepreneurs</h3>
+          <p class="text-gray-600 leading-relaxed">
+            Independent founders who need AI-powered guidance, validation tools, and connections to scale their ventures.
+          </p>
+        </div>
+
+        <div class="text-center group">
+          <div class="w-28 h-28 bg-gradient-to-br from-green-100 to-green-200 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg icon-glow group-hover:scale-110 transition-transform">
+            <span class="text-4xl">🏛️</span>
+          </div>
+          <h3 class="font-bold text-gray-900 mb-4 text-xl">Accelerators & VCs</h3>
+          <p class="text-gray-600 leading-relaxed">
+            Investment firms and accelerators who want to discover, evaluate, and support the next generation of startups globally.
+          </p>
+        </div>
+
+        <div class="text-center group">
+          <div class="w-28 h-28 bg-gradient-to-br from-purple-100 to-purple-200 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-lg icon-glow group-hover:scale-110 transition-transform">
+            <span class="text-4xl">🌍</span>
+          </div>
+          <h3 class="font-bold text-gray-900 mb-4 text-xl">Global Organizations</h3>
+          <p class="text-gray-600 leading-relaxed">
+            Corporations, NGOs, and institutions that want to foster innovation and discover breakthrough solutions worldwide.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section id="how-it-works" class="section-padding bg-white">
+    <div class="container-spacing">
+      <div class="text-center mb-20">
+        <h2 class="text-4xl font-bold text-gray-900 mb-8">From Curiosity to Creation</h2>
+        <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+          Whether you have a specific idea or just know where you want to make an impact, our AI guides you through every step of the innovation journey.
+        </p>
+      </div>
+
+      <!-- Two Starting Paths -->
+      <div class="mb-16 bg-gradient-to-r from-blue-50 to-purple-50 rounded-3xl p-8">
+        <div class="text-center mb-8">
+          <h3 class="text-2xl font-bold text-gray-900 mb-4">Choose Your Starting Point</h3>
+          <p class="text-gray-600">Every innovation journey is unique. Start where you are!</p>
+        </div>
+        <div class="grid md:grid-cols-2 gap-8">
+          <div class="bg-white p-6 rounded-2xl shadow-lg text-center">
+            <div class="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+            </div>
+            <h4 class="font-bold text-gray-900 mb-2">I Have an Idea!</h4>
+            <p class="text-sm text-gray-600">Ready to validate and develop your specific concept</p>
+          </div>
+          <div class="bg-white p-6 rounded-2xl shadow-lg text-center">
+            <div class="w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+            </div>
+            <h4 class="font-bold text-gray-900 mb-2">I Want to Innovate in...</h4>
+            <p class="text-sm text-gray-600">Know your passion area but need help finding the right opportunity</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid lg:grid-cols-6 gap-8">
+        <div class="text-center">
+          <div class="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 11H7v3h2v-3zm4 0h-2v3h2v-3zm4 0h-2v3h2v-3zm2-7h-2V2h-2v2H9V2H7v2H5c-1.1 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-3">Discover & Ideate</h3>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Share your idea or explore opportunities in your field of interest. Our AI helps you discover unmet needs and generate breakthrough concepts.
+          </p>
+        </div>
+
+        <div class="text-center">
+          <div class="w-20 h-20 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-3">AI Deep Dive</h3>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Get comprehensive market analysis, competitive landscape, feasibility assessment, and personalized strategic roadmap.
+          </p>
+        </div>
+
+        <div class="text-center">
+          <div class="w-20 h-20 bg-gradient-to-br from-green-500 to-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zm4 18v-6h2.5l-2.54-7.63A1.5 1.5 0 0 0 18.54 8H16c-.8 0-1.54.37-2.01.99l-2.54 3.38c-.36.48-.85.63-1.37.63s-1.01-.15-1.37-.63L6.17 8.99C5.7 8.37 4.96 8 4.16 8H1.62c-.69 0-1.3.42-1.42 1.01L0 9v1h2l1.5 4.5L2 18v4h2v-4l1.5-4.5L7 18v4h2v-4l-1.5-4.5L9 9h2l1.5 4.5L11 18v4h2v-4l-1.5-4.5L13 9h2l1.5 4.5L15 18v4h2v-4l-1.5-4.5L17 9h2v-1l-.2-.01c-.12-.59-.73-1.01-1.42-1.01z"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-3">Smart Matching</h3>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Connect with ideal co-founders, mentors, advisors, and early customers who complement your skills and share your vision.
+          </p>
+        </div>
+
+        <div class="text-center">
+          <div class="w-20 h-20 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4zM6.7 8.8c-.7.7-1.9.7-2.6 0-.7-.7-.7-1.9 0-2.6.7-.7 1.9-.7 2.6 0 .7.7.7 1.9 0 2.6z"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-3">Build & Prototype</h3>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Create MVPs using our no-code tools, design thinking frameworks, and rapid prototyping resources with AI guidance.
+          </p>
+        </div>
+
+        <div class="text-center">
+          <div class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-3">Test & Iterate</h3>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Run user tests, gather feedback, analyze metrics, and iterate rapidly with AI-powered insights and optimization suggestions.
+          </p>
+        </div>
+
+        <div class="text-center">
+          <div class="w-20 h-20 bg-gradient-to-br from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-3">Launch & Scale</h3>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Go to market with confidence, access funding opportunities, and scale globally with continued ecosystem support.
+          </p>
+        </div>
+      </div>
+
+      <!-- Success Story -->
+      <div class="mt-20 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-3xl p-12">
+        <div class="text-center mb-12">
+          <h3 class="text-3xl font-bold text-gray-900 mb-4">Real Success Story</h3>
+          <p class="text-lg text-gray-600">See how Nextify transforms curiosity into impact</p>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-8 items-center">
+          <div class="text-center">
+            <div class="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <span class="text-3xl">🌟</span>
+            </div>
+            <h4 class="font-bold text-gray-900 mb-2">Zara, 22, Mumbai</h4>
+            <p class="text-gray-600 text-sm">Engineering student passionate about healthcare but no specific idea</p>
+          </div>
+
+          <div class="text-center">
+            <svg class="w-8 h-8 text-blue-500 mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            <div class="bg-white rounded-2xl p-6 shadow-lg">
+              <h4 class="font-bold text-gray-900 mb-3">120 Days Later</h4>
+              <ul class="text-sm text-gray-600 space-y-2">
+                <li>✅ Discovered mental health gap</li>
+                <li>✅ Built AI therapy chatbot MVP</li>
+                <li>✅ Tested with 200+ users</li>
+                <li>✅ Found co-founder & mentor</li>
+                <li>✅ Raised $75K pre-seed</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="text-center">
+            <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <svg class="w-12 h-12 text-green-600" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+            </div>
+            <h4 class="font-bold text-gray-900 mb-2">MindBridge AI</h4>
+            <p class="text-gray-600 text-sm">Supporting 2,000+ users across South Asia with mental wellness</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="pricing" class="section-padding bg-gray-50">
+    <div class="container-spacing">
+      <div class="text-center mb-12 md:mb-20">
+        <h2 class="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-6 md:mb-8">Accessible Innovation for Everyone</h2>
+        <p class="text-base sm:text-lg md:text-xl text-gray-600">Choose the plan that fits your innovation journey</p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-6 md:gap-8 lg:gap-10 max-w-5xl mx-auto">
+        <!-- Free -->
+        <div class="bg-white p-6 md:p-8 lg:p-10 rounded-2xl md:rounded-3xl shadow-lg border border-gray-200">
+          <div class="text-center mb-6 md:mb-8">
+            <h3 class="text-xl md:text-2xl font-bold text-gray-900 mb-2">Explorer</h3>
+            <div class="text-3xl md:text-4xl lg:text-5xl font-bold text-blue-600 mb-2">Free</div>
+            <p class="text-sm md:text-base text-gray-600">Perfect for getting started</p>
+          </div>
+          <ul class="space-y-3 md:space-y-4 mb-8 md:mb-10">
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-500 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">3 idea analyses per month</span>
+            </li>
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-500 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">Basic market validation</span>
+            </li>
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-500 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">Community access</span>
+            </li>
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-500 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">Learning resources</span>
+            </li>
+          </ul>
+          <a href="roles.html"
+           class="focusable block text-center w-full bg-blue-600 text-white py-3 md:py-4 rounded-full font-semibold hover:bg-blue-700 transition-colors text-sm md:text-base lg:text-lg">
+           Start Free Today!
+          </a>
+
+        </div>
+
+        <!-- Pro -->
+        <div class="bg-blue-600 p-6 md:p-8 lg:p-10 rounded-2xl md:rounded-3xl shadow-xl text-white relative md:transform md:scale-105">
+          <div class="absolute -top-3 md:-top-4 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-4 md:px-6 py-1 md:py-2 rounded-full text-xs md:text-sm font-semibold">
+            Most Popular
+          </div>
+          <div class="text-center mb-6 md:mb-8">
+            <h3 class="text-xl md:text-2xl font-bold mb-2">Creator</h3>
+            <div class="text-3xl md:text-4xl lg:text-5xl font-bold mb-2">$29<span class="text-lg md:text-xl text-blue-200">/mo</span></div>
+            <p class="text-sm md:text-base text-blue-100">For serious innovators</p>
+          </div>
+          <ul class="space-y-3 md:space-y-4 mb-8 md:mb-10">
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-400 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">Unlimited idea analyses</span>
+            </li>
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-400 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">AI co-founder assistant</span>
+            </li>
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-400 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">Smart networking</span>
+            </li>
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-400 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">MVP builder tools</span>
+            </li>
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-400 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">Priority support</span>
+            </li>
+          </ul>
+          <a href="roles.html"
+             class="focusable block text-center w-full bg-white text-blue-600 py-3 md:py-4 rounded-full font-semibold hover:bg-gray-50 transition-colors text-sm md:text-base lg:text-lg">
+            Start 14-Day Trial
+          </a>
+
+        </div>
+
+        <!-- Enterprise -->
+        <div class="bg-white p-6 md:p-8 lg:p-10 rounded-2xl md:rounded-3xl shadow-lg border border-gray-200">
+          <div class="text-center mb-6 md:mb-8">
+            <h3 class="text-xl md:text-2xl font-bold text-gray-900 mb-2">Enterprise</h3>
+            <div class="text-3xl md:text-4xl lg:text-5xl font-bold text-blue-600 mb-2">Custom</div>
+            <p class="text-sm md:text-base text-gray-600">For organizations</p>
+          </div>
+          <ul class="space-y-3 md:space-y-4 mb-8 md:mb-10">
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-500 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">White-label platform</span>
+            </li>
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-500 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">VC/Accelerator dashboards</span>
+            </li>
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-500 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">Custom integrations</span>
+            </li>
+            <li class="flex items-center">
+              <svg class="w-5 h-5 md:w-6 md:h-6 text-green-500 mr-3 md:mr-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+              </svg>
+              <span class="text-sm md:text-base">Dedicated support</span>
+            </li>
+          </ul>
+          <button class="focusable w-full bg-blue-600 text-white py-3 md:py-4 rounded-full font-semibold hover:bg-blue-700 transition-colors text-sm md:text-base lg:text-lg">
+            Contact Sales
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Call to Action -->
+  <section class="section-padding bg-white">
+    <div class="container-spacing">
+      <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-3xl p-16 text-center text-white">
+        <h2 class="text-4xl md:text-5xl font-bold mb-8">
+          Ready to Join the Global Innovation Movement?
+        </h2>
+        <p class="text-xl text-blue-100 mb-12 max-w-3xl mx-auto leading-relaxed">
+          Whether you're a dreamer with your first idea or an investor looking for the next big thing, 
+          Nextify connects you with the global innovation ecosystem. Start your journey today.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-6 justify-center">
+          <a href="roles.html"
+           class="focusable inline-block bg-white text-blue-600 px-12 py-4 rounded-full text-lg font-semibold hover:bg-gray-50 transition-all shadow-xl">
+            Start Free Today!
+          </a>
+
+          <button class="focusable border-2 border-white text-white px-12 py-4 rounded-full text-lg font-semibold hover:bg-white hover:text-blue-600 transition-all">
+            Schedule Demo
+          </button>
+        </div>
+
+           <!-- Trust Indicators -->
+        <div class="mt-16 pt-12 border-t border-blue-500">
+          <p class="text-blue-200 mb-8 text-center">Trusted by innovators worldwide</p>
+
+          <!-- Grid version: stable across Chrome/Edge; wide spacing -->
+          <div class="w-full grid grid-cols-2 sm:grid-cols-4 place-items-center gap-y-10 gap-x-10 md:gap-x-16 lg:gap-x-28 xl:gap-x-40">
+            <div class="text-center">
+              <div class="text-3xl md:text-4xl font-extrabold text-white">2.5K+</div>
+              <div class="text-sm text-blue-200">Early Innovators</div>
+            </div>
+            <div class="text-center">
+              <div class="text-3xl md:text-4xl font-extrabold text-white">45+</div>
+              <div class="text-sm text-blue-200">Countries</div>
+            </div>
+            <div class="text-center">
+              <div class="text-3xl md:text-4xl font-extrabold text-white">$12M</div>
+              <div class="text-sm text-blue-200">Ideas Validated</div>
+            </div>
+            <div class="text-center">
+              <div class="text-3xl md:text-4xl font-extrabold text-white">127</div>
+              <div class="text-sm text-blue-200">Products Launched</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+  <!-- Footer -->
+  <footer class="bg-gray-900 text-white section-padding">
+    <div class="container-spacing">
+      <div class="grid md:grid-cols-4 gap-12 mb-12">
+        <div>
+          <div class="text-3xl font-bold gradient-text mb-6">Nextify</div>
+          <p class="text-gray-400 leading-relaxed mb-6">
+            Democratizing innovation by connecting dreamers, builders, and funders in one global ecosystem.
+          </p>
+          <div class="flex space-x-4">
+            <a href="#" class="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors focusable" aria-label="Twitter">
+              <i class="fab fa-twitter"></i>
+            </a>
+            <a href="#" class="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors focusable" aria-label="LinkedIn">
+              <i class="fab fa-linkedin"></i>
+            </a>
+            <a href="#" class="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors focusable" aria-label="GitHub">
+              <i class="fab fa-github"></i>
+            </a>
+          </div>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-6 text-lg">Platform</h4>
+          <ul class="space-y-3 text-gray-400">
+            <li><a href="#" class="hover:text-white transition-colors focusable">For Innovators</a></li>
+            <li><a href="#" class="hover:text-white transition-colors focusable">For Investors</a></li>
+            <li><a href="#" class="hover:text-white transition-colors focusable">For Accelerators</a></li>
+            <li><a href="#" class="hover:text-white transition-colors focusable">API Documentation</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-6 text-lg">Resources</h4>
+          <ul class="space-y-3 text-gray-400">
+            <li><a href="#" class="hover:text-white transition-colors focusable">Success Stories</a></li>
+            <li><a href="#" class="hover:text-white transition-colors focusable">Innovation Guide</a></li>
+            <li><a href="#" class="hover:text-white transition-colors focusable">Community</a></li>
+            <li><a href="#" class="hover:text-white transition-colors focusable">Blog</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="font-semibold mb-6 text-lg">Company</h4>
+          <ul class="space-y-3 text-gray-400">
+            <li><a href="#" class="hover:text-white transition-colors focusable">About Us</a></li>
+            <li><a href="#" class="hover:text-white transition-colors focusable">Careers</a></li>
+            <li><a href="#" class="hover:text-white transition-colors focusable">Contact</a></li>
+            <li><a href="#" class="hover:text-white transition-colors focusable">Privacy Policy</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="border-t border-gray-800 pt-8 text-center text-gray-400">
+        <p>&copy; 2025 Nextify. Empowering global innovation, one idea at a time.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Smooth scrolling for navigation links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      });
+    });
+
+    // Navigation scroll effect
+    window.addEventListener('scroll', function() {
+      const nav = document.querySelector('nav');
+      if (window.scrollY > 50) {
+        nav.classList.add('shadow-lg');
+        nav.classList.remove('bg-white/95');
+        nav.classList.add('bg-white');
+      } else {
+        nav.classList.remove('shadow-lg');
+        nav.classList.remove('bg-white');
+        nav.classList.add('bg-white/95');
+      }
+    });
+
+    // Mobile menu functionality
+    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+    const mobileMenu = document.getElementById('mobile-menu');
+    mobileMenuBtn.addEventListener('click', function() {
+      mobileMenu.classList.toggle('hidden');
+    });
+
+    // Close mobile menu when clicking on links
+    document.querySelectorAll('#mobile-menu a').forEach(link => {
+      link.addEventListener('click', function() {
+        mobileMenu.classList.add('hidden');
+      });
+    });
+
+    // Button interactions (unchanged behavior: show friendly alerts / scroll)
+    document.querySelectorAll('button').forEach(button => {
+      button.addEventListener('click', function() {
+        const text = this.textContent.toLowerCase();
+        if (text.includes('start') || text.includes('join') || text.includes('free')) {
+          alert('🚀 Welcome to Nextify! Your innovation journey starts here. Beta signup coming soon!');
+        } else if (text.includes('demo') || text.includes('contact') || text.includes('sales')) {
+          alert('📧 Let\'s connect! Reach out to hello@nextify.ai to schedule your demo.');
+        } else if (text.includes('trial')) {
+          alert('✨ 14-day free trial starting soon! We\'ll notify you when it\'s ready.');
+        } else if (text.includes('how it works') || text.includes('see how')) {
+          document.querySelector('#how-it-works').scrollIntoView({ behavior: 'smooth' });
+        }
+      });
+    });
+
+    // Intersection Observer for animations
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.style.opacity = '1';
+          entry.target.style.transform = 'translateY(0)';
+        }
+      });
+    }, observerOptions);
+
+    // Animate cards on scroll
+    document.querySelectorAll('.card-hover').forEach(card => {
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(30px)';
+      card.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
+      observer.observe(card);
+    });
+  </script>
+
+  <!-- Cloudflare snippet preserved as-is -->
+  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'97753ac8d2d7de6d',t:'MTc1NjU2Njc4MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</body>
+</html>

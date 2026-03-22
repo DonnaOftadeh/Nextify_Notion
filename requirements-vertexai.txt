@@ -1,0 +1,2 @@
+google-cloud-aiplatform>=1.66.0
+protobuf<5

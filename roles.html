@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Choose Your Path — Nextify</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .focusable:focus { outline: 2px solid #2563eb; outline-offset: 2px; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <!-- Simple Header -->
+  <nav class="bg-white shadow-sm sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <a href="index.html" class="text-xl font-bold text-blue-700">Nextify</a>
+      <a href="index.html" class="text-sm text-gray-600 hover:text-blue-600 focusable">Back to Home</a>
+    </div>
+  </nav>
+
+  <!-- Page Title -->
+  <section class="max-w-6xl mx-auto px-4 pt-10 pb-6">
+    <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-3">Choose your starting point</h1>
+    <p class="text-gray-600">Pick the option that best describes you. We’ll tailor the journey accordingly.</p>
+  </section>
+
+  <!-- Cards -->
+  <section class="max-w-6xl mx-auto px-4 pb-16">
+    <div class="grid gap-6 md:grid-cols-3">
+      <!-- Accelerator -->
+      <div class="bg-white rounded-2xl shadow-md p-6 flex flex-col">
+        <div class="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center mb-4">🚀</div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">Accelerator</h3>
+        <p class="text-gray-600 mb-6">For startup programs that want AI-powered scouting, evaluation, and portfolio support.</p>
+        <button id="open-accel" class="mt-auto focusable inline-flex items-center justify-center px-5 py-3 rounded-full bg-blue-600 text-white font-semibold hover:bg-blue-700 transition">
+          Sign in as Accelerator
+        </button>
+      </div>
+
+      <!-- Organization -->
+      <div class="bg-white rounded-2xl shadow-md p-6 flex flex-col">
+        <div class="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center mb-4">🏢</div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">Organization</h3>
+        <p class="text-gray-600 mb-6">For corporates, NGOs, and institutions seeking external innovation and internal acceleration.</p>
+        <button id="open-org" class="mt-auto focusable inline-flex items-center justify-center px-5 py-3 rounded-full bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition">
+          Sign in as an Organization
+        </button>
+      </div>
+
+      <!-- Founder -->
+      <div class="bg-white rounded-2xl shadow-md p-6 flex flex-col">
+        <div class="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center mb-4">🧑‍🚀</div>
+        <h3 class="text-xl font-bold text-gray-900 mb-2">Founder</h3>
+        <p class="text-gray-600 mb-6">For individuals with an idea, a target industry, or a product vision who want to build with AI co-founder support.</p>
+        <!-- Change this href later if you prefer to go straight to Streamlit onboarding -->
+        <a href="roles-founder.html" class="mt-auto focusable inline-flex items-center justify-center px-5 py-3 rounded-full bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition">
+          Continue as Founder
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- “Coming soon” Modal -->
+  <div id="modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6">
+      <h4 class="text-xl font-bold text-gray-900 mb-2">Coming in the next phase</h4>
+      <p class="text-gray-600 mb-6" id="modal-text">
+        This track will open soon with tailored onboarding and tools.
+      </p>
+      <div class="flex gap-3 justify-end">
+        <a href="index.html" class="focusable px-4 py-2 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200">Back to Home</a>
+        <button id="close-modal" class="focusable px-4 py-2 rounded-full bg-blue-600 text-white font-semibold hover:bg-blue-700">Got it</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const modal = document.getElementById('modal');
+    const modalText = document.getElementById('modal-text');
+    const openAccel = document.getElementById('open-accel');
+    const openOrg = document.getElementById('open-org');
+    const closeModal = document.getElementById('close-modal');
+
+    function openComingSoon(context){
+      modalText.textContent = `${context} onboarding is coming in the next phase. Stay tuned!`;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    openAccel.addEventListener('click', () => openComingSoon('Accelerator'));
+    openOrg.addEventListener('click', () => openComingSoon('Organization'));
+    closeModal.addEventListener('click', () => {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    });
+
+    // Close modal on ESC
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    });
+  </script>
+</body>
+</html>

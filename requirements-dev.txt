@@ -1,0 +1,11 @@
+# --- Optional analysis / notebooks ---
+ipython
+pandas
+numpy
+matplotlib
+seaborn
+plotly
+beautifulsoup4
+
+# UI experiments
+streamlit
