@@ -373,14 +373,15 @@ async def _run_pipeline(job_id: str, submission: Submission):
 async def submit(submission: Submission):
     job_id = str(uuid.uuid4())
     JOBS[job_id] = {
-        "created_at": time.time(),
-        "status": "queued",
-        "step": "Queued",
-        "progress": 0,
-        "message": "Job queued.",
-        "pdf_path": None,
-        "journey_type": submission.journey_type,
-        "raw_report": "",
+    "created_at": time.time(),
+    "status": "queued",
+    "step": "Queued",
+    "progress": 0,
+    "message": "Job queued.",
+    "pdf_path": None,
+    "journey_type": submission.journey_type,
+    "raw_report": "",
+    "history": {},
     }
     asyncio.create_task(_run_pipeline(job_id, submission))
     return {"job_id": job_id}
