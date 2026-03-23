@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Tuple
-import asyncio, uuid, time, os, re, unicodedata
+import asyncio, uuid, time, os, re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -29,27 +29,30 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+
 # ------------------- FastAPI -------------------
 app = FastAPI(title="Nextify Backend (ReportLab PDF)")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://donnaoftadeh.github.io",                 # your GitHub Pages site (origin)
-        "https://gilbert-unabridged-rumbly.ngrok-free.app"  # your stable ngrok domain
+        "https://donnaoftadeh.github.io",
+        "https://gilbert-unabridged-rumbly.ngrok-free.app"
         # optional locals you use when testing from a local HTML file:
         # "http://localhost:5500", "http://127.0.0.1:5500",
         # "http://localhost:5173", "http://127.0.0.1:5173",
     ],
-    allow_credentials=False,  # <- simpler CORS for demo; turn on later only if you set cookies
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ------------------- Storage -------------------
 class Submission(BaseModel):
     journey_type: str = Field(..., pattern="^(company|industry|product|idea)$")
     payload: Dict[str, Any]
+
 
 JOBS: Dict[str, Dict[str, Any]] = {}
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -64,13 +67,17 @@ DEJAVU_BOLD = FONT_DIR / "DejaVuSans-Bold.ttf"
 
 UI_STEPS = [
     "Parse Submission",
-    "Brainstorming",
-    "Theme/Epic & Roadmap Generation",
-    "Feature Generation & Prioritization",
-    "OKR & Planning",
-    "Evaluation",
-    "Write Report (PDF)"
+    "Brainstorm Parallel",
+    "Idea Cooker",
+    "Theme & Epic Generator",
+    "Roadmap Generator",
+    "Feature Generation",
+    "Prioritization & RICE",
+    "OKR Generation",
+    "Three-Month Planner",
+    "Write Report (PDF)",
 ]
+
 
 # ------------------- Fonts/Styles -------------------
 def _register_fonts():
@@ -81,6 +88,7 @@ def _register_fonts():
             pdfmetrics.registerFont(TTFont("DejaVu-Bold", str(DEJAVU_BOLD)))
     except Exception:
         pass
+
 
 def _styles():
     base = getSampleStyleSheet()
@@ -96,12 +104,13 @@ def _styles():
 
     return {"title": title, "h1": h1, "h2": h2, "h3": h3, "body": body, "mono": mono}
 
+
 # ------------------- Title rules -------------------
 def _make_report_title(jt: str, p: Dict[str, Any]) -> Tuple[str, str]:
-    company  = (p.get("bench_company") or p.get("company_name") or "Company").strip()
-    product  = (p.get("product_name") or "Product").strip()
+    company = (p.get("bench_company") or p.get("company_name") or "Company").strip()
+    product = (p.get("product_name") or "Product").strip()
     industry = (p.get("industry") or "Industry").strip()
-    idea     = (p.get("idea_title") or p.get("idea_text") or "Idea").strip()
+    idea = (p.get("idea_title") or p.get("idea_text") or "Idea").strip()
 
     jt = (jt or "").lower().strip()
     if jt == "company":
@@ -116,27 +125,32 @@ def _make_report_title(jt: str, p: Dict[str, Any]) -> Tuple[str, str]:
     fname = "".join(c for c in title if c not in r'\/:*?"<>|').strip()
     return title, fname
 
+
 # ------------------- Markdown parsing -------------------
 def _escape_basic(s: str) -> str:
-    return s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 
 def _md_inline(s: str) -> str:
     t = re.sub(r"\*\*(.+?)\*\*", r"«b»\1«/b»", s)
-    t = re.sub(r"__(.+?)__",   r"«b»\1«/b»", t)
+    t = re.sub(r"__(.+?)__", r"«b»\1«/b»", t)
     t = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"«i»\1«/i»", t)
-    t = re.sub(r"_(.+?)_",   r"«i»\1«/i»", t)
+    t = re.sub(r"_(.+?)_", r"«i»\1«/i»", t)
     t = _escape_basic(t)
-    return t.replace("«b»","<b>").replace("«/b»","</b>").replace("«i»","<i>").replace("«/i»","</i>")
+    return t.replace("«b»", "<b>").replace("«/b»", "</b>").replace("«i»", "<i>").replace("«/i»", "</i>")
+
 
 def _parse_md_table(block: List[str]) -> List[List[str]]:
     rows: List[List[str]] = []
     for raw in block:
         ln = raw.strip()
-        if ln.startswith("|"): ln = ln[1:]
-        if ln.endswith("|"): ln = ln[:-1]
+        if ln.startswith("|"):
+            ln = ln[1:]
+        if ln.endswith("|"):
+            ln = ln[:-1]
         parts = [c.strip() for c in ln.split("|")]
         rows.append(parts)
-    # drop separator row(s)
+
     cleaned: List[List[str]] = []
     for r in rows:
         if len(r) >= 1 and all(set(c) <= set("-: ") for c in r):
@@ -144,51 +158,53 @@ def _parse_md_table(block: List[str]) -> List[List[str]]:
         cleaned.append(r)
     return cleaned
 
+
 def _table_flowable(rows: List[List[str]], styles) -> KeepTogether:
     if not rows or not rows[0]:
         return Spacer(1, 1)
-    # Convert cells to Paragraphs (wrap text) and apply small font
+
     body_style = ParagraphStyle("tbl", parent=styles["body"], fontSize=8.8, leading=12)
     header_style = ParagraphStyle("th", parent=styles["h3"], fontSize=9.4, leading=12, spaceBefore=0, spaceAfter=0)
 
     data: List[List[Any]] = []
     for i, r in enumerate(rows):
         cells: List[Any] = []
-        for j, c in enumerate(r):
+        for c in r:
             txt = _md_inline(c)
             cells.append(Paragraph(txt, header_style if i == 0 else body_style))
         data.append(cells)
 
-    # dynamic column widths: equal share of available width
-    avail = (A4[0] - (14*mm + 14*mm))  # consider margins; real exact width applied in doc.build
+    avail = (A4[0] - (14 * mm + 14 * mm))
     ncols = max(len(r) for r in rows)
     colw = [max(50, avail / max(1, ncols))] * ncols
 
     tbl = Table(data, colWidths=colw, repeatRows=1, hAlign="LEFT", spaceBefore=4, spaceAfter=6)
     tbl.setStyle(TableStyle([
-        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#f3f4f6")),
-        ("TEXTCOLOR", (0,0), (-1,0), colors.black),
-        ("ALIGN", (0,0), (-1,-1), "LEFT"),
-        ("VALIGN", (0,0), (-1,-1), "TOP"),
-        ("GRID", (0,0), (-1,-1), 0.4, colors.HexColor("#e5e7eb")),
-        ("LEFTPADDING", (0,0), (-1,-1), 4),
-        ("RIGHTPADDING",(0,0), (-1,-1), 4),
-        ("TOPPADDING",  (0,0), (-1,-1), 3),
-        ("BOTTOMPADDING",(0,0),(-1,-1), 3),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f3f4f6")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#e5e7eb")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
     return KeepTogether(tbl)
+
 
 def _extract_rice(rows: List[List[str]]) -> List[Tuple[str, float]]:
     out: List[Tuple[str, float]] = []
     if not rows or len(rows) < 2:
         return out
-    # find RICE column index
+
     header = [h.strip().lower() for h in rows[0]]
     try:
         idx = header.index("rice")
     except ValueError:
         return out
+
     for r in rows[1:]:
         try:
             name = r[0]
@@ -198,19 +214,24 @@ def _extract_rice(rows: List[List[str]]) -> List[Tuple[str, float]]:
             continue
     return out
 
+
 def _chart_rice(job_id: str, scores: List[Tuple[str, float]]) -> str:
     if not scores:
         return ""
+
     labels = [a for a, _ in scores]
     vals = [b for _, b in scores]
+
     plt.figure(figsize=(5.4, 3.1))
     plt.bar(labels, vals)
     plt.xticks(rotation=45, ha="right")
     plt.tight_layout()
+
     path = CHART_DIR / f"rice_{job_id}.png"
     plt.savefig(path)
     plt.close()
     return str(path)
+
 
 def _parse_to_flowables(text: str, styles) -> Tuple[List[Any], List[List[str]]]:
     """
@@ -250,9 +271,12 @@ def _parse_to_flowables(text: str, styles) -> Tuple[List[Any], List[List[str]]]:
     for raw in lines:
         ln = raw.rstrip()
         s = ln.strip()
+
         if not s:
-            flush_list(); flush_table()
-            story.append(Spacer(1, 4)); continue
+            flush_list()
+            flush_table()
+            story.append(Spacer(1, 4))
+            continue
 
         if s.startswith("|"):
             flush_list()
@@ -260,28 +284,41 @@ def _parse_to_flowables(text: str, styles) -> Tuple[List[Any], List[List[str]]]:
             continue
 
         if s.startswith("### "):
-            flush_list(); flush_table()
-            story.append(Paragraph(_md_inline(s[4:]), styles["h3"])); continue
+            flush_list()
+            flush_table()
+            story.append(Paragraph(_md_inline(s[4:]), styles["h3"]))
+            continue
+
         if s.startswith("## "):
-            flush_list(); flush_table()
-            story.append(Paragraph(_md_inline(s[3:]), styles["h2"])); continue
+            flush_list()
+            flush_table()
+            story.append(Paragraph(_md_inline(s[3:]), styles["h2"]))
+            continue
+
         if s.startswith("# "):
-            flush_list(); flush_table()
-            story.append(Paragraph(_md_inline(s[2:]), styles["h1"])); continue
+            flush_list()
+            flush_table()
+            story.append(Paragraph(_md_inline(s[2:]), styles["h1"]))
+            continue
 
         if s.startswith("- "):
             flush_table()
-            bullets.append(s[2:].strip()); continue
+            bullets.append(s[2:].strip())
+            continue
 
         if re.match(r"^\d+\.\s+", s):
             flush_table()
-            nums.append(re.sub(r"^\d+\.\s+", "", s).strip()); continue
+            nums.append(re.sub(r"^\d+\.\s+", "", s).strip())
+            continue
 
-        flush_list(); flush_table()
+        flush_list()
+        flush_table()
         story.append(Paragraph(_md_inline(s), styles["body"]))
 
-    flush_list(); flush_table()
+    flush_list()
+    flush_table()
     return story, last_table_rows
+
 
 # ------------------- PDF build -------------------
 def generate_pdf(job_id: str, journey_type: str, payload: Dict[str, Any], report_text: str) -> str:
@@ -300,29 +337,33 @@ def generate_pdf(job_id: str, journey_type: str, payload: Dict[str, Any], report
     flow, last_rows = _parse_to_flowables(report_text, styles)
     story.extend(flow)
 
-    # If the last parsed table (usually features) contains RICE column → add chart directly after it, no title text
     rice_scores = _extract_rice(last_rows)
     if rice_scores:
         chart = _chart_rice(job_id, rice_scores)
         if chart and os.path.exists(chart):
-            story.append(Image(chart, width=170*mm, height=90*mm))
+            story.append(Image(chart, width=170 * mm, height=90 * mm))
             story.append(Spacer(1, 6))
 
     doc = SimpleDocTemplate(
         str(out_path),
         pagesize=A4,
-        leftMargin=14*mm, rightMargin=14*mm,  # slightly narrower
-        topMargin=14*mm, bottomMargin=14*mm,
-        title=title_text, author="Nextify",
+        leftMargin=14 * mm,
+        rightMargin=14 * mm,
+        topMargin=14 * mm,
+        bottomMargin=14 * mm,
+        title=title_text,
+        author="Nextify",
     )
     doc.build(story)
     return str(out_path)
+
 
 # ------------------- Pipeline -------------------
 async def _run_pipeline(job_id: str, submission: Submission):
     job = JOBS[job_id]
     job["raw_report"] = ""
     job["history"] = {}
+
     try:
         job.update(status="running", step=UI_STEPS[0], progress=4, message="Validating…")
         await asyncio.sleep(0.1)
@@ -363,28 +404,31 @@ async def _run_pipeline(job_id: str, submission: Submission):
             progress=100,
             status="done",
             step="Complete",
-            message="Report ready."
+            message="Report ready.",
         )
+
     except Exception as e:
         job.update(status="failed", step="Error", message=f"Pipeline error: {e}", progress=100)
+
 
 # ------------------- API -------------------
 @app.post("/api/submit")
 async def submit(submission: Submission):
     job_id = str(uuid.uuid4())
     JOBS[job_id] = {
-    "created_at": time.time(),
-    "status": "queued",
-    "step": "Queued",
-    "progress": 0,
-    "message": "Job queued.",
-    "pdf_path": None,
-    "journey_type": submission.journey_type,
-    "raw_report": "",
-    "history": {},
+        "created_at": time.time(),
+        "status": "queued",
+        "step": "Queued",
+        "progress": 0,
+        "message": "Job queued.",
+        "pdf_path": None,
+        "journey_type": submission.journey_type,
+        "raw_report": "",
+        "history": {},
     }
     asyncio.create_task(_run_pipeline(job_id, submission))
     return {"job_id": job_id}
+
 
 @app.get("/api/status/{job_id}")
 async def status(job_id: str):
@@ -400,6 +444,7 @@ async def status(job_id: str):
         "ready": job["status"] == "done",
     }
 
+
 @app.get("/api/result/{job_id}")
 async def result(job_id: str):
     job = JOBS.get(job_id)
@@ -410,6 +455,7 @@ async def result(job_id: str):
     filename = os.path.basename(job["pdf_path"])
     return FileResponse(job["pdf_path"], media_type="application/pdf", filename=filename)
 
+
 @app.get("/api/debug/{job_id}/raw")
 async def debug_raw(job_id: str):
     job = JOBS.get(job_id)
@@ -417,6 +463,15 @@ async def debug_raw(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
     raw = job.get("raw_report") or "(no raw report stored)"
     return PlainTextResponse(raw)
+
+
+@app.get("/api/debug/{job_id}/history")
+async def debug_history(job_id: str):
+    job = JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JSONResponse(job.get("history", {}))
+
 
 @app.get("/")
 async def root():
