@@ -50,7 +50,7 @@ app.add_middleware(
 
 # ------------------- Storage -------------------
 class Submission(BaseModel):
-    journey_type: str = Field(..., pattern="^(company|industry|product|idea)$")
+    journey_type: str = Field(default="idea", pattern="^(company|industry|product|idea)$")
     payload: Dict[str, Any]
 
 
