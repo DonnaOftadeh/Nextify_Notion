@@ -10,7 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv("app/.env")
 
-from .agents import run_multi_agent
+from .adk_agents import run_multi_agent_adk
 
 # ReportLab
 from reportlab.platypus import (
@@ -322,27 +322,49 @@ def generate_pdf(job_id: str, journey_type: str, payload: Dict[str, Any], report
 async def _run_pipeline(job_id: str, submission: Submission):
     job = JOBS[job_id]
     job["raw_report"] = ""
+    job["history"] = {}
     try:
         job.update(status="running", step=UI_STEPS[0], progress=4, message="Validating…")
         await asyncio.sleep(0.1)
 
-        job.update(step=UI_STEPS[1], progress=7, message="Running multi‑agent pipeline...")
+        job.update(step=UI_STEPS[1], progress=7, message="Running multi-agent pipeline...")
         await asyncio.sleep(0.1)
 
         def cb(idx: int, sec_title: str, msg: str):
             job["step"] = sec_title
             job["message"] = msg
-            # map steps across 95%
-            job["progress"] = min(7 + int(idx * (88 / 6)), 95)
+            job["progress"] = min(7 + int(idx * (88 / 8)), 95)
 
-        report_text = await run_multi_agent(submission.model_dump(), cb)
+        history = await run_multi_agent_adk(submission.payload, cb)
+
+        report_text = history.get("final_report_md", "")
+        if not report_text:
+            report_text = "\n\n".join(filter(None, [
+                history.get("market_analysis_md", ""),
+                history.get("crazy_ideas_md", ""),
+                history.get("idea_cooker_md", ""),
+                history.get("theme_epic_md", ""),
+                history.get("roadmap_generator_md", ""),
+                history.get("feature_generation_md", ""),
+                history.get("prioritization_rice_md", ""),
+                history.get("okr_output_md", ""),
+                history.get("planner_md", ""),
+            ]))
+
+        job["history"] = history
         job["raw_report"] = report_text or ""
 
         job.update(step=UI_STEPS[-1], progress=97, message="Generating final report…")
         await asyncio.sleep(0.2)
 
         pdf_path = generate_pdf(job_id, submission.journey_type, submission.payload, report_text)
-        job.update(pdf_path=pdf_path, progress=100, status="done", step="Complete", message="Report ready.")
+        job.update(
+            pdf_path=pdf_path,
+            progress=100,
+            status="done",
+            step="Complete",
+            message="Report ready."
+        )
     except Exception as e:
         job.update(status="failed", step="Error", message=f"Pipeline error: {e}", progress=100)
 
