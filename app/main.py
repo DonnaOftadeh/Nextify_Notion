@@ -37,7 +37,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://donnaoftadeh.github.io",
-        "https://gilbert-unabridged-rumbly.ngrok-free.app"
+        "https://gilbert-unabridged-rumbly.ngrok-free.app",
         # optional locals you use when testing from a local HTML file:
         # "http://localhost:5500", "http://127.0.0.1:5500",
         # "http://localhost:5173", "http://127.0.0.1:5173",
@@ -77,6 +77,8 @@ UI_STEPS = [
     "Three-Month Planner",
     "Write Report (PDF)",
 ]
+
+PIPELINE_STAGE_COUNT = 8
 
 
 # ------------------- Fonts/Styles -------------------
@@ -374,9 +376,12 @@ async def _run_pipeline(job_id: str, submission: Submission):
         def cb(idx: int, sec_title: str, msg: str):
             job["step"] = sec_title
             job["message"] = msg
-            job["progress"] = min(7 + int(idx * (88 / 8)), 95)
+            job["progress"] = min(7 + int(idx * (88 / PIPELINE_STAGE_COUNT)), 95)
 
-        history = await run_multi_agent_adk(submission.payload, cb)
+        pipeline_payload = dict(submission.payload)
+        pipeline_payload["journey_type"] = submission.journey_type
+
+        history = await run_multi_agent_adk(pipeline_payload, cb)
 
         report_text = history.get("final_report_md", "")
         if not report_text:
