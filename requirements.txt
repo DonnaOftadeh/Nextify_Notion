@@ -30,4 +30,4 @@ numpy>=1.26
 altair>=5.3   
 pyyaml 
 
-google-adk==0.8.0
+google-adk
