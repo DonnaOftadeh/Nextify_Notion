@@ -27,7 +27,6 @@ import asyncio
 import os
 
 from google.adk.agents import LlmAgent, SequentialAgent, ParallelAgent
-from google.genai import Gemini
 from openai import OpenAI
 
 
@@ -40,7 +39,7 @@ from openai import OpenAI
 
 market_agent = LlmAgent(
     name="MarketAnalysisAgent",
-    model=Gemini(model="gemini-2.5-flash"),
+    model="gemini-2.5-flash",
     instruction="""
 You are the **MarketAnalysisAgent** for an early-stage startup MVP planning assistant (Nextify).
 
@@ -143,7 +142,7 @@ IMPORTANT STYLE GUIDELINES:
 
 crazy_agent = LlmAgent(
     name="CrazyIdeaAgent",
-    model=Gemini(model="gemini-2.5-flash"),
+    model="gemini-2.5-flash",
     instruction="""
 You are the **CrazyIdeaAgent**. Your job is to generate bold, creative, but still MVP-buildable product concepts.
 
@@ -188,7 +187,7 @@ Do NOT do tradeoff scores here. Just generate strong, diverse concept options.
 
 idea_cooker_agent = LlmAgent(
     name="IdeaCookerAgent",
-    model=Gemini(model="gemini-2.5-flash"),
+    model="gemini-2.5-flash",
     instruction="""
 You are the **IdeaCookerAgent**, a tradeoff + synthesis agent.
 
@@ -274,7 +273,7 @@ IMPORTANT:
 
 feature_agent = LlmAgent(
     name="FeatureGenerationAgent",
-    model=Gemini(model="gemini-2.5-flash"),
+    model="gemini-2.5-flash",
     instruction="""
 You are the **FeatureExtractionAgent**.
 
@@ -321,7 +320,7 @@ IMPORTANT:
 
 prioritization_agent = LlmAgent(
     name="PrioritizationAgent",
-    model=Gemini(model="gemini-2.5-flash"),
+    model="gemini-2.5-flash",
     instruction="""
 You are the **RiceRoadmapAgent**.
 
@@ -391,7 +390,7 @@ IMPORTANT:
 
 okr_agent = LlmAgent(
     name="OKRAgent",
-    model=Gemini(model="gemini-2.5-flash"),
+    model="gemini-2.5-flash",
     instruction="""
 You are the **OKR Architect** for Nextify.
 
@@ -468,7 +467,7 @@ Rules:
 
 planner_agent = LlmAgent(
     name="PlannerAgent",
-    model=Gemini(model="gemini-2.5-flash"),
+    model="gemini-2.5-flash",
     instruction="""
 You are the **Three-Month Execution Planner** for Nextify.
 
@@ -552,7 +551,7 @@ Rules:
 
 evaluation_agent = LlmAgent(
     name="EvaluatorAgent",
-    model=Gemini(model="gemini-2.5-flash"),
+    model="gemini-2.5-flash",
     instruction="""
 You are the **Evaluation & Quality Agent** for Nextify.
 
@@ -675,7 +674,7 @@ RULES:
 
 brainstorm_parallel = ParallelAgent(
     name="BrainstormParallel",
-    agents=[market_agent, crazy_agent],
+    sub_agents=[market_agent, crazy_agent],
 )
 
 STAGE_ORDER = [
@@ -708,7 +707,7 @@ STAGE_CONFIG = {
     },
     "theme_epic": {
         "title": "Theme & Epic Generator",
-        "agent": theme_agent,
+        "agent": theme_epic_agent,
         "output_key": "theme_epic_md",
         "eval_key": "eval_theme_epic_md",
         "progress": 3.0,
@@ -1002,13 +1001,13 @@ async def run_multi_agent_adk(
     # ---------------------------
     # Stage 2A: Theme / Epic Generation
     # ---------------------------
-    out2a = await theme_agent.ainvoke(
+    out2a = await theme_epic_agent.ainvoke(
         {**context, **history},
         handlers={"status": lambda s: progress_cb(3, "Theme & Epic Generator", s.message)},
     )
     history.update(out2a)
     history["theme_epic_md"] = out2a.get("content_md", "")
-    history["theme_epic_prompt"] = theme_agent.instruction
+    history["theme_epic_prompt"] = theme_epic_agent.instruction
 
     # ---------------------------
     # Stage 2B: Roadmap Generation
