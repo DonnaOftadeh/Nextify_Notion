@@ -1,45 +1,50 @@
 """
-This module defines the multi‑agent pipeline used by Nextify to ideate,
-refine and evaluate a product concept. Each agent is implemented using
-Google's Agent Development Kit (ADK) and uses prompts taken directly
-from the reference notebook `nextify-final-nov30-donna-final.ipynb`.
+This module defines the multi-agent pipeline used by Nextify to ideate,
+refine and evaluate a product concept using Google ADK.
 
-The pipeline consists of four main stages:
+Pipeline stages:
+1. Brainstorming parallel:
+   - MarketAnalysisAgent
+   - CrazyIdeaAgent
+2. Idea Cooker / synthesis
+3. Theme & Epic generation
+4. Roadmap generation
+5. Feature generation
+6. Prioritization / RICE
+7. OKR generation
+8. Three-month planning
 
-1. **Brainstorming** – runs MarketAnalysisAgent and CrazyIdeaAgent in parallel
-   to explore both the market landscape and bold concept directions.
-2. **Roadmapping** – synthesises themes and epics and drafts a high‑level
-   roadmap via ThemeEpicAgent and RoadmapAgent.
-3. **Feature Prioritization** – breaks down the product into features
-   and ranks them with a RICE‑style approach.
-4. **OKR & Planning** – defines OKRs and translates them into a
-   realistic three‑month plan.
-
-An optional evaluation stage can be triggered on demand. The evaluation
-agent assesses the output of any stage and provides quality scores,
-issues, suggestions and a rewritten version.
+It returns a history dictionary that can later be used for:
+- stage-by-stage evaluation
+- human-in-the-loop review
+- rerun-from-stage logic
+- PDF / Notion export
 """
 
 from __future__ import annotations
 
-from typing import Dict, Any, Callable, Tuple
+from typing import Dict, Any, Callable
 import asyncio
-import os
+import json
+import uuid
 
-from google.adk.agents import LlmAgent, SequentialAgent, ParallelAgent
-from openai import OpenAI
+from google.adk.agents import LlmAgent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
+
+
+MODEL_NAME = "gemini-2.5-flash"
+APP_NAME = "nextify_adk_app"
 
 
 # -----------------------------------------------------------------------------
 # Agent definitions
-#
-# Each agent uses the exact instruction text from the original notebook.  The
-# prompts must be kept verbatim to ensure the new pipeline behaves identically
-# to the notebook.
+# -----------------------------------------------------------------------------
 
 market_agent = LlmAgent(
     name="MarketAnalysisAgent",
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     instruction="""
 You are the **MarketAnalysisAgent** for an early-stage startup MVP planning assistant (Nextify).
 
@@ -85,7 +90,7 @@ You MUST output a single markdown document with the following tags and sections,
 
 Explain clearly and concisely:
 
-- **TAM (Total Addressable Market):** 
+- **TAM (Total Addressable Market):**
   - **Value:** ~$X (currency + order of magnitude)
   - **How estimated:** 1–2 sentences (e.g., "Based on global spend on X / # of Y × Z ARPU").
 - **SAM (Serviceable Available Market):**
@@ -142,7 +147,7 @@ IMPORTANT STYLE GUIDELINES:
 
 crazy_agent = LlmAgent(
     name="CrazyIdeaAgent",
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     instruction="""
 You are the **CrazyIdeaAgent**. Your job is to generate bold, creative, but still MVP-buildable product concepts.
 
@@ -187,7 +192,7 @@ Do NOT do tradeoff scores here. Just generate strong, diverse concept options.
 
 idea_cooker_agent = LlmAgent(
     name="IdeaCookerAgent",
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     instruction="""
 You are the **IdeaCookerAgent**, a tradeoff + synthesis agent.
 
@@ -258,7 +263,7 @@ Below the table, add a **Scoring Rationale** block with subheadings per concept:
   - **Target users**
   - **Concept summary**
   - **Core value proposition**
-  -**Market Analysis**
+  - **Market Analysis**
   - **Key features (MVP scope)**
   - **Risks & mitigations**
   - **Example use cases**
@@ -271,9 +276,102 @@ IMPORTANT:
 """
 )
 
+theme_epic_agent = LlmAgent(
+    name="ThemeEpicAgent",
+    model=MODEL_NAME,
+    instruction="""
+You are the **ThemeEpicAgent** for Nextify.
+
+YOU SEE AS INPUT:
+- FOUNDER_IDEA_FORM_JSON
+- FOUNDER_IDEA_FORM_MARKDOWN
+- [FINAL_PRODUCT_SNAPSHOT_MD] or equivalent brainstorming output
+- Any prior feedback_history if available
+
+YOUR JOB:
+1. Read the product snapshot carefully.
+2. Extract 3–5 strategic themes that organize the product direction.
+3. For each theme, define 2–4 epics that can guide roadmap planning.
+4. Keep everything aligned with:
+   - founder problem
+   - target users
+   - constraints
+   - MVP-first logic
+
+OUTPUT FORMAT (STRICT):
+
+[THEME_EPIC_MD]
+## 🎯 Strategic Themes
+
+For each theme:
+- **Theme name:** <short label>
+- **Why it matters:** 1–3 bullets
+- **User / business value:** 1–2 bullets
+
+## 🧩 Epics
+
+For each epic:
+- **Epic name:** <short label>
+- **Mapped theme:** <theme name>
+- **What this epic covers:** 1–3 bullets
+- **Why this belongs in roadmap planning:** 1–2 bullets
+
+IMPORTANT:
+- Stay faithful to the brainstorm/product snapshot.
+- Do not invent a different product.
+- Be concrete enough to support roadmap generation.
+- Keep output in markdown only.
+"""
+)
+
+roadmap_agent = LlmAgent(
+    name="RoadmapAgent",
+    model=MODEL_NAME,
+    instruction="""
+You are the **RoadmapAgent** for Nextify.
+
+YOU SEE AS INPUT:
+- FOUNDER_IDEA_FORM_JSON
+- FOUNDER_IDEA_FORM_MARKDOWN
+- [FINAL_PRODUCT_SNAPSHOT_MD]
+- [THEME_EPIC_MD]
+
+YOUR JOB:
+1. Convert the strategic themes and epics into a realistic roadmap.
+2. Keep scope appropriate for an early-stage founder / MVP context.
+3. Organize the roadmap into a practical progression.
+4. Show why each phase happens in that order.
+
+OUTPUT FORMAT (STRICT):
+
+[ROADMAP_GENERATOR_MD]
+## 🗺️ Strategic Roadmap
+
+### Phase 1 – Foundation / MVP
+- 3–6 bullets
+- explain why these items come first
+
+### Phase 2 – Validation / Expansion
+- 3–6 bullets
+- explain what is unlocked after Phase 1
+
+### Phase 3 – Optimization / Scale
+- 3–6 bullets
+- explain what becomes relevant later
+
+## 🔗 Roadmap Logic
+- 3–6 bullets showing dependencies, sequencing, and tradeoffs
+
+IMPORTANT:
+- Be realistic for a small founder-led team.
+- Stay aligned with the themes and epics.
+- Keep everything in markdown.
+"""
+)
+
 feature_agent = LlmAgent(
     name="FeatureGenerationAgent",
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     instruction="""
 You are the **FeatureExtractionAgent**.
 
@@ -320,7 +418,7 @@ IMPORTANT:
 
 prioritization_agent = LlmAgent(
     name="PrioritizationAgent",
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     instruction="""
 You are the **RiceRoadmapAgent**.
 
@@ -390,7 +488,7 @@ IMPORTANT:
 
 okr_agent = LlmAgent(
     name="OKRAgent",
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     instruction="""
 You are the **OKR Architect** for Nextify.
 
@@ -461,13 +559,12 @@ Rules:
 * Keep the OKR set small enough to be **realistically executed** in 1 quarter.
 * Reference the product snapshot and 3-month plan implicitly; do not re-explain them.
 * Be concrete, founder-friendly, and slightly opinionated about what truly matters.
-  
 """
 )
 
 planner_agent = LlmAgent(
     name="PlannerAgent",
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     instruction="""
 You are the **Three-Month Execution Planner** for Nextify.
 
@@ -551,7 +648,7 @@ Rules:
 
 evaluation_agent = LlmAgent(
     name="EvaluatorAgent",
-    model="gemini-2.5-flash",
+    model=MODEL_NAME,
     instruction="""
 You are the **Evaluation & Quality Agent** for Nextify.
 
@@ -659,471 +756,29 @@ RULES:
 """
 )
 
+
 # -----------------------------------------------------------------------------
-# Pipeline definitions
-
-# The brainstorming stage runs MarketAnalysisAgent and CrazyIdeaAgent in parallel,
-# then feeds their outputs into IdeaCookerAgent.
+# Prompt registry
 # -----------------------------------------------------------------------------
-# Backend stage definitions
-#
-# We keep the exact ADK agents, but expose them as separate backend stages so that:
-# - each stage can be evaluated independently
-# - each stage can later receive human feedback / approval
-# - rerun-from-stage becomes possible
 
-brainstorm_parallel = ParallelAgent(
-    name="BrainstormParallel",
-    sub_agents=[market_agent, crazy_agent],
-)
-
-STAGE_ORDER = [
-    "brainstorm_parallel",
-    "idea_cooker",
-    "theme_epic",
-    "roadmap",
-    "feature_generation",
-    "prioritization_rice",
-    "okr_generation",
-    "planner",
-]
-
-STAGE_CONFIG = {
-    "brainstorm_parallel": {
-        "title": "Brainstorm Parallel",
-        "agent": brainstorm_parallel,
-        "output_key": "brainstorm_parallel_md",
-        "eval_key": "eval_brainstorm_parallel_md",
-        "progress": 1.0,
-        "eval_progress": 1.1,
-    },
-    "idea_cooker": {
-        "title": "Idea Cooker",
-        "agent": idea_cooker_agent,
-        "output_key": "brainstorm_md",
-        "eval_key": "eval_brainstorm_md",
-        "progress": 2.0,
-        "eval_progress": 2.1,
-    },
-    "theme_epic": {
-        "title": "Theme & Epic Generator",
-        "agent": theme_epic_agent,
-        "output_key": "theme_epic_md",
-        "eval_key": "eval_theme_epic_md",
-        "progress": 3.0,
-        "eval_progress": 3.1,
-    },
-    "roadmap": {
-        "title": "Roadmap Generator",
-        "agent": roadmap_agent,
-        "output_key": "roadmap_md",
-        "eval_key": "eval_roadmap_md",
-        "progress": 4.0,
-        "eval_progress": 4.1,
-    },
-    "feature_generation": {
-        "title": "Feature Generation",
-        "agent": feature_agent,
-        "output_key": "feature_generation_md",
-        "eval_key": "eval_feature_generation_md",
-        "progress": 5.0,
-        "eval_progress": 5.1,
-    },
-    "prioritization_rice": {
-        "title": "Prioritization & RICE",
-        "agent": prioritization_agent,
-        "output_key": "feature_prioritization_md",
-        "eval_key": "eval_feature_md",
-        "progress": 6.0,
-        "eval_progress": 6.1,
-    },
-    "okr_generation": {
-        "title": "OKR Generation",
-        "agent": okr_agent,
-        "output_key": "okr_output_md",
-        "eval_key": "eval_okr_output_md",
-        "progress": 7.0,
-        "eval_progress": 7.1,
-    },
-    "planner": {
-        "title": "Three-Month Planner",
-        "agent": planner_agent,
-        "output_key": "okr_planning_md",
-        "eval_key": "eval_okr_plan_md",
-        "progress": 8.0,
-        "eval_progress": 8.1,
-    },
+STAGE_PROMPTS = {
+    "market_analysis": market_agent.instruction,
+    "crazy_ideas": crazy_agent.instruction,
+    "idea_cooker": idea_cooker_agent.instruction,
+    "theme_epic": theme_epic_agent.instruction,
+    "roadmap": roadmap_agent.instruction,
+    "feature_generation": feature_agent.instruction,
+    "prioritization_rice": prioritization_agent.instruction,
+    "okr_generation": okr_agent.instruction,
+    "planner": planner_agent.instruction,
 }
 
-async def _evaluate_section(
-    *,
-    stage_key: str,
-    stage_title: str,
-    stage_content: str,
-    founder_json: Dict[str, Any],
-    founder_md: str,
-    history: Dict[str, Any],
-    evaluation_model: str | None = None,
-    progress_cb: Callable[[float, str, str], None] | None = None,
-    progress_index: float = 0.0,
-) -> str:
-    """
-    Run an on-demand evaluation for one selected stage of the Nextify multi-agent workflow.
 
-    This function is intended to be triggered explicitly by the backend/UI when the user
-    requests evaluation for a specific stage. It does NOT automatically run as part of the
-    pipeline unless the caller chooses to invoke it.
-
-    Parameters
-    ----------
-    stage_key:
-        Internal backend identifier for the selected stage
-        (for example: "brainstorm_parallel", "idea_cooker", "theme_epic", "roadmap",
-        "feature_generation", "prioritization_rice", "okr_generation", "planner").
-
-    stage_title:
-        Human-readable stage name passed into the evaluator prompt and used in progress
-        messages.
-
-    stage_content:
-        Markdown output generated by the selected stage. This is the content that will be
-        evaluated by the Evaluation Agent.
-
-    founder_json:
-        Original founder / user structured payload.
-
-    founder_md:
-        Markdown rendering of the founder / user idea form.
-
-    history:
-        Rolling workflow history containing all currently available generated outputs from
-        previous stages and, if present, later stages as well. This allows the evaluator to
-        assess alignment, feasibility, contradictions, and cross-stage consistency.
-
-    evaluation_model:
-        If set to "OpenAI", OpenAI is used for evaluation. Otherwise Gemini is used by default.
-
-    progress_cb:
-        Optional callback for backend progress reporting. If provided, it will receive
-        (progress_index, label, message).
-
-    progress_index:
-        Numeric marker used when reporting progress via progress_cb.
-
-    Returns
-    -------
-    str
-        Markdown output produced by the evaluation agent, expected to contain sections like:
-        [QUALITY_SCORES]
-        [COMMENT_SUMMARY]
-        [ISSUES_AND_FLAGS]
-        [IMPROVEMENT_SUGGESTIONS]
-        [REWRITTEN_VERSION]
-    """
-
-    if not stage_content or not str(stage_content).strip():
-        return (
-            "[QUALITY_SCORES]\n"
-            "- Overall: 1 — No evaluable content was provided.\n"
-            "- Clarity: 1 — Stage output is empty.\n"
-            "- Feasibility: 1 — Cannot assess feasibility without content.\n"
-            "- AlignmentWithIdea: 1 — Cannot assess alignment without content.\n\n"
-            "[COMMENT_SUMMARY]\n"
-            "- No stage output was generated to evaluate.\n"
-            "- Re-run this stage before requesting evaluation.\n\n"
-            "[ISSUES_AND_FLAGS]\n"
-            "- Empty stage output.\n"
-            "- The selected stage has no evaluable markdown content.\n\n"
-            "[IMPROVEMENT_SUGGESTIONS]\n"
-            "- Re-run the selected stage.\n"
-            "- Check upstream inputs and generated outputs.\n"
-            "- Confirm the stage wrote its markdown result into history correctly.\n\n"
-            "[REWRITTEN_VERSION]\n"
-            "No rewritten version available because the stage output was empty."
-        )
-
-    if evaluation_model == "OpenAI":
-        model = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    else:
-        model = Gemini(model="gemini-2.5-flash")
-
-    dynamic_eval = LlmAgent(
-        name=f"DynamicEvaluator_{stage_key}",
-        model=model,
-        instruction=evaluation_agent.instruction,
-    )
-
-    eval_input = {
-        "FOUNDER_IDEA_FORM_JSON": founder_json,
-        "FOUNDER_IDEA_FORM_MARKDOWN": founder_md,
-        "FINAL_PRODUCT_SNAPSHOT_MD": history.get("brainstorm_md", ""),
-        "FEATURE_ROADMAP_MD": history.get("feature_prioritization_md", ""),
-        "OKR_OUTPUT": history.get("okr_output_md", ""),
-        "THREE_MONTH_PLAN_MD": history.get("okr_planning_md", ""),
-        "STAGE_NAME": stage_title,
-        "STAGE_CONTENT": stage_content,
-    }
-
-    handlers = {}
-    if progress_cb is not None:
-        handlers["status"] = lambda s: progress_cb(
-            progress_index,
-            f"Evaluation: {stage_title}",
-            s.message,
-        )
-
-    eval_resp = await dynamic_eval.ainvoke(eval_input, handlers=handlers)
-    return eval_resp.get("content_md", "")
-
-def _extract_comment_summary(eval_md: str) -> str:
-    """
-    Build a short UI-friendly summary from an evaluation markdown block.
-    Prefers [COMMENT_SUMMARY]. If not found, falls back to [ISSUES_AND_FLAGS].
-    """
-    if not eval_md:
-        return ""
-
-    if "[COMMENT_SUMMARY]" in eval_md:
-        block = eval_md.split("[COMMENT_SUMMARY]", 1)[1]
-        for stop in [
-            "[ISSUES_AND_FLAGS]",
-            "[IMPROVEMENT_SUGGESTIONS]",
-            "[REWRITTEN_VERSION]",
-        ]:
-            if stop in block:
-                block = block.split(stop, 1)[0]
-        lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
-        return "\n".join(lines[:5])
-
-    if "[ISSUES_AND_FLAGS]" in eval_md:
-        block = eval_md.split("[ISSUES_AND_FLAGS]", 1)[1]
-        for stop in [
-            "[IMPROVEMENT_SUGGESTIONS]",
-            "[REWRITTEN_VERSION]",
-        ]:
-            if stop in block:
-                block = block.split(stop, 1)[0]
-        lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
-        return "\n".join(lines[:5])
-
-    lines = [ln.strip() for ln in eval_md.splitlines() if ln.strip()]
-    return "\n".join(lines[:5])
-
-
-def _build_final_report(stages: Dict[str, Dict[str, Any]]) -> str:
-    """
-    Build a stitched markdown report from the stage outputs only.
-    Since evaluation is on-demand, this report contains the generated outputs,
-    not the evaluator outputs.
-    """
-    ordered_keys = [
-        "brainstorm_parallel",
-        "idea_cooker",
-        "theme_epic",
-        "roadmap",
-        "feature_generation",
-        "prioritization_rice",
-        "okr_generation",
-        "planner",
-    ]
-    blocks = []
-    for key in ordered_keys:
-        stage = stages.get(key, {})
-        if stage.get("output_md"):
-            blocks.append(stage["output_md"])
-    return "\n\n".join(filter(None, blocks))
-
-async def run_multi_agent_adk(
-    payload: Dict[str, Any],
-    progress_cb: Callable[[float, str, str], None],
-) -> Dict[str, Any]:
-    """
-    Run the Nextify ADK multi-agent pipeline for the idea journey.
-
-    This function executes the workflow stage by stage using the founder idea form
-    and any available feedback history as context. It stores:
-    - individual agent outputs
-    - combined stage outputs
-    - original prompt/instruction context
-
-    The returned history can later be used for:
-    - on-demand evaluation of any stage
-    - human review / feedback
-    - rerun-from-stage logic
-    - report / Notion export flows
-
-    Args:
-        payload: Founder idea form payload and any feedback history.
-        progress_cb: Callback used to report progress updates.
-
-    Returns:
-        Dictionary containing full pipeline history.
-    """
-
-    context = {
-        "FOUNDER_IDEA_FORM_JSON": payload,
-        "FOUNDER_IDEA_FORM_MARKDOWN": _render_idea_form_md(payload),
-        "feedback_history": payload.get("feedback_history", {}),
-    }
-
-    history: Dict[str, Any] = {}
-
-    # ---------------------------
-    # Stage 1A: Brainstorm Parallel
-    # ---------------------------
-    out1a = await brainstorm_parallel.ainvoke(
-        context,
-        handlers={"status": lambda s: progress_cb(1, "Brainstorm Parallel", s.message)},
-    )
-    history.update(out1a)
-
-    # Keep individual outputs from the parallel stage if available
-    history["market_analysis_md"] = out1a.get("market_agent", {}).get("content_md", "") if isinstance(out1a.get("market_agent"), dict) else out1a.get("market_analysis_md", "")
-    history["crazy_ideas_md"] = out1a.get("crazy_agent", {}).get("content_md", "") if isinstance(out1a.get("crazy_agent"), dict) else out1a.get("crazy_ideas_md", "")
-    history["brainstorm_parallel_md"] = out1a.get("content_md", "")
-    history["brainstorm_parallel_prompt"] = "Parallel execution of MarketAnalysisAgent and CrazyIdeaAgent."
-
-    # ---------------------------
-    # Stage 1B: Idea Cooker
-    # ---------------------------
-    out1b = await idea_cooker_agent.ainvoke(
-        {**context, **history},
-        handlers={"status": lambda s: progress_cb(2, "Idea Cooker", s.message)},
-    )
-    history.update(out1b)
-    history["idea_cooker_md"] = out1b.get("content_md", "")
-    history["idea_cooker_prompt"] = idea_cooker_agent.instruction
-
-    # Combined brainstorming stage output
-    history["brainstorm_md"] = history["idea_cooker_md"]
-    history["brainstorm_prompt"] = idea_cooker_agent.instruction
-
-    # ---------------------------
-    # Stage 2A: Theme / Epic Generation
-    # ---------------------------
-    out2a = await theme_epic_agent.ainvoke(
-        {**context, **history},
-        handlers={"status": lambda s: progress_cb(3, "Theme & Epic Generator", s.message)},
-    )
-    history.update(out2a)
-    history["theme_epic_md"] = out2a.get("content_md", "")
-    history["theme_epic_prompt"] = theme_epic_agent.instruction
-
-    # ---------------------------
-    # Stage 2B: Roadmap Generation
-    # ---------------------------
-    out2b = await roadmap_agent.ainvoke(
-        {**context, **history},
-        handlers={"status": lambda s: progress_cb(4, "Roadmap Generator", s.message)},
-    )
-    history.update(out2b)
-    history["roadmap_generator_md"] = out2b.get("content_md", "")
-    history["roadmap_generator_prompt"] = roadmap_agent.instruction
-
-    # Combined roadmapping stage output
-    history["roadmap_md"] = "\n\n".join(filter(None, [
-        history.get("theme_epic_md", ""),
-        history.get("roadmap_generator_md", ""),
-    ]))
-    history["roadmap_prompt"] = "\n\n".join(filter(None, [
-        theme_agent.instruction,
-        roadmap_agent.instruction,
-    ]))
-
-    # ---------------------------
-    # Stage 3A: Feature Generation
-    # ---------------------------
-    out3a = await feature_agent.ainvoke(
-        {**context, **history},
-        handlers={"status": lambda s: progress_cb(5, "Feature Generation", s.message)},
-    )
-    history.update(out3a)
-    history["feature_generation_md"] = out3a.get("content_md", "")
-    history["feature_generation_prompt"] = feature_agent.instruction
-
-    # ---------------------------
-    # Stage 3B: Prioritization / RICE
-    # ---------------------------
-    out3b = await prioritization_agent.ainvoke(
-        {**context, **history},
-        handlers={"status": lambda s: progress_cb(6, "Prioritization & RICE", s.message)},
-    )
-    history.update(out3b)
-    history["prioritization_rice_md"] = out3b.get("content_md", "")
-    history["prioritization_rice_prompt"] = prioritization_agent.instruction
-
-    # Combined feature stage output
-    history["feature_prioritization_md"] = "\n\n".join(filter(None, [
-        history.get("feature_generation_md", ""),
-        history.get("prioritization_rice_md", ""),
-    ]))
-    history["feature_prompt"] = "\n\n".join(filter(None, [
-        feature_agent.instruction,
-        prioritization_agent.instruction,
-    ]))
-
-    # ---------------------------
-    # Stage 4A: OKR Generation
-    # ---------------------------
-    out4a = await okr_agent.ainvoke(
-        {**context, **history},
-        handlers={"status": lambda s: progress_cb(7, "OKR Generation", s.message)},
-    )
-    history.update(out4a)
-    history["okr_output_md"] = out4a.get("content_md", "")
-    history["okr_output_prompt"] = okr_agent.instruction
-
-    # ---------------------------
-    # Stage 4B: Three-Month Planning
-    # ---------------------------
-    out4b = await planner_agent.ainvoke(
-        {**context, **history},
-        handlers={"status": lambda s: progress_cb(8, "Three-Month Planner", s.message)},
-    )
-    history.update(out4b)
-    history["planner_md"] = out4b.get("content_md", "")
-    history["planner_prompt"] = planner_agent.instruction
-
-    # Combined OKR + planning stage output
-    history["okr_planning_md"] = "\n\n".join(filter(None, [
-        history.get("okr_output_md", ""),
-        history.get("planner_md", ""),
-    ]))
-    history["okr_prompt"] = "\n\n".join(filter(None, [
-        okr_agent.instruction,
-        planner_agent.instruction,
-    ]))
-
-    # ---------------------------
-    # Final stitched report
-    # ---------------------------
-    history["final_report_md"] = "\n\n".join(filter(None, [
-        history.get("market_analysis_md", ""),
-        history.get("crazy_ideas_md", ""),
-        history.get("idea_cooker_md", ""),
-        history.get("theme_epic_md", ""),
-        history.get("roadmap_generator_md", ""),
-        history.get("feature_generation_md", ""),
-        history.get("prioritization_rice_md", ""),
-        history.get("okr_output_md", ""),
-        history.get("planner_md", ""),
-    ]))
-
-    return history
-
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
 
 def _render_idea_form_md(idea_form: Dict[str, Any]) -> str:
-    """
-    Convert the founder’s idea form (JSON) into a markdown bullet list.  The
-    notebook typically displays the idea form as key-value pairs.  This helper
-    replicates that formatting to provide context to the agents.
-
-    Args:
-        idea_form: the idea form dictionary from the user.
-
-    Returns:
-        A markdown formatted string representing the idea form.
-    """
     lines: list[str] = []
     title = idea_form.get("idea_title")
     if title:
@@ -1136,4 +791,476 @@ def _render_idea_form_md(idea_form: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["run_multi_agent_adk"]
+def _json_pretty(data: Dict[str, Any]) -> str:
+    try:
+        return json.dumps(data, indent=2, ensure_ascii=False)
+    except Exception:
+        return str(data)
+
+
+def _build_stage_input(
+    *,
+    founder_json: Dict[str, Any],
+    founder_md: str,
+    history: Dict[str, Any],
+    stage_title: str,
+    extra_sections: Dict[str, str] | None = None,
+) -> str:
+    parts = [
+        f"# STAGE: {stage_title}",
+        "",
+        "## FOUNDER_IDEA_FORM_MARKDOWN",
+        founder_md,
+        "",
+        "## FOUNDER_IDEA_FORM_JSON",
+        _json_pretty(founder_json),
+    ]
+
+    if extra_sections:
+        for key, value in extra_sections.items():
+            if value:
+                parts.extend([
+                    "",
+                    f"## {key}",
+                    value,
+                ])
+
+    if history.get("feedback_history"):
+        parts.extend([
+            "",
+            "## FEEDBACK_HISTORY",
+            _json_pretty(history["feedback_history"]),
+        ])
+
+    return "\n".join(parts).strip()
+
+
+async def _run_agent_once(
+    *,
+    agent: LlmAgent,
+    input_text: str,
+    user_id: str,
+    session_id: str,
+    session_service: InMemorySessionService,
+) -> str:
+    await session_service.create_session(
+        app_name=APP_NAME,
+        user_id=user_id,
+        session_id=session_id,
+    )
+
+    runner = Runner(
+        agent=agent,
+        app_name=APP_NAME,
+        session_service=session_service,
+    )
+
+    user_message = types.Content(
+        role="user",
+        parts=[types.Part(text=input_text)],
+    )
+
+    final_text = ""
+    async for event in runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=user_message,
+    ):
+        if event.is_final_response() and event.content and event.content.parts:
+            text_parts = []
+            for part in event.content.parts:
+                if getattr(part, "text", None):
+                    text_parts.append(part.text)
+            if text_parts:
+                final_text = "\n".join(text_parts).strip()
+
+    return final_text
+
+
+async def _evaluate_section(
+    *,
+    stage_key: str,
+    stage_title: str,
+    stage_content: str,
+    founder_json: Dict[str, Any],
+    founder_md: str,
+    history: Dict[str, Any],
+    progress_cb: Callable[[float, str, str], None] | None = None,
+    progress_index: float = 0.0,
+) -> str:
+    if not stage_content or not str(stage_content).strip():
+        return (
+            "[QUALITY_SCORES]\n"
+            "- Overall: 1 — No evaluable content was provided.\n"
+            "- PromptAdherence: 1 — No stage output to evaluate.\n"
+            "- Clarity: 1 — Stage output is empty.\n"
+            "- Feasibility: 1 — Cannot assess feasibility without content.\n"
+            "- AlignmentWithIdea: 1 — Cannot assess alignment without content.\n\n"
+            "[COMMENT_SUMMARY]\n"
+            "- No stage output was generated to evaluate.\n"
+            "- Re-run this stage before requesting evaluation.\n\n"
+            "[ISSUES_AND_FLAGS]\n"
+            "- Empty stage output.\n\n"
+            "[IMPROVEMENT_SUGGESTIONS]\n"
+            "- Re-run the selected stage.\n"
+            "- Check upstream inputs.\n\n"
+            "[REWRITTEN_VERSION]\n"
+            "No rewritten version available because the stage output was empty."
+        )
+
+    if progress_cb:
+        progress_cb(progress_index, f"Evaluation: {stage_title}", "Running evaluation...")
+
+    eval_input = "\n\n".join([
+        f"# STAGE_NAME\n{stage_title}",
+        f"## STAGE_KEY\n{stage_key}",
+        "## ORIGINAL_PROMPT",
+        STAGE_PROMPTS.get(stage_key, ""),
+        "## FOUNDER_IDEA_FORM_MARKDOWN",
+        founder_md,
+        "## FOUNDER_IDEA_FORM_JSON",
+        _json_pretty(founder_json),
+        "## FINAL_PRODUCT_SNAPSHOT_MD",
+        history.get("brainstorm_md", ""),
+        "## FEATURE_ROADMAP_MD",
+        history.get("feature_prioritization_md", ""),
+        "## OKR_OUTPUT",
+        history.get("okr_output_md", ""),
+        "## THREE_MONTH_PLAN_MD",
+        history.get("planner_md", ""),
+        "## STAGE_CONTENT",
+        stage_content,
+    ])
+
+    session_service = InMemorySessionService()
+    user_id = "nextify_eval_user"
+    session_id = f"eval_{stage_key}_{uuid.uuid4().hex}"
+
+    return await _run_agent_once(
+        agent=evaluation_agent,
+        input_text=eval_input,
+        user_id=user_id,
+        session_id=session_id,
+        session_service=session_service,
+    )
+
+
+def _extract_comment_summary(eval_md: str) -> str:
+    if not eval_md:
+        return ""
+
+    if "[COMMENT_SUMMARY]" in eval_md:
+        block = eval_md.split("[COMMENT_SUMMARY]", 1)[1]
+        for stop in ["[ISSUES_AND_FLAGS]", "[IMPROVEMENT_SUGGESTIONS]", "[REWRITTEN_VERSION]"]:
+            if stop in block:
+                block = block.split(stop, 1)[0]
+        lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
+        return "\n".join(lines[:5])
+
+    if "[ISSUES_AND_FLAGS]" in eval_md:
+        block = eval_md.split("[ISSUES_AND_FLAGS]", 1)[1]
+        for stop in ["[IMPROVEMENT_SUGGESTIONS]", "[REWRITTEN_VERSION]"]:
+            if stop in block:
+                block = block.split(stop, 1)[0]
+        lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
+        return "\n".join(lines[:5])
+
+    lines = [ln.strip() for ln in eval_md.splitlines() if ln.strip()]
+    return "\n".join(lines[:5])
+
+
+def _build_final_report(history: Dict[str, Any]) -> str:
+    ordered_blocks = [
+        history.get("market_analysis_md", ""),
+        history.get("crazy_ideas_md", ""),
+        history.get("idea_cooker_md", ""),
+        history.get("theme_epic_md", ""),
+        history.get("roadmap_generator_md", ""),
+        history.get("feature_generation_md", ""),
+        history.get("prioritization_rice_md", ""),
+        history.get("okr_output_md", ""),
+        history.get("planner_md", ""),
+    ]
+    return "\n\n".join([block for block in ordered_blocks if block])
+
+
+# -----------------------------------------------------------------------------
+# Main pipeline
+# -----------------------------------------------------------------------------
+
+async def run_multi_agent_adk(
+    payload: Dict[str, Any],
+    progress_cb: Callable[[float, str, str], None],
+) -> Dict[str, Any]:
+    founder_md = _render_idea_form_md(payload)
+
+    history: Dict[str, Any] = {
+        "feedback_history": payload.get("feedback_history", {}),
+    }
+
+    session_service = InMemorySessionService()
+    user_id = "nextify_user"
+
+    # ---------------------------
+    # Stage 1A: Brainstorm Parallel
+    # ---------------------------
+    progress_cb(1.0, "Brainstorm Parallel", "Running MarketAnalysisAgent and CrazyIdeaAgent...")
+
+    market_input = _build_stage_input(
+        founder_json=payload,
+        founder_md=founder_md,
+        history=history,
+        stage_title="Market Analysis",
+    )
+
+    crazy_input = _build_stage_input(
+        founder_json=payload,
+        founder_md=founder_md,
+        history=history,
+        stage_title="Crazy Ideas",
+    )
+
+    market_task = _run_agent_once(
+        agent=market_agent,
+        input_text=market_input,
+        user_id=user_id,
+        session_id=f"market_{uuid.uuid4().hex}",
+        session_service=session_service,
+    )
+
+    crazy_task = _run_agent_once(
+        agent=crazy_agent,
+        input_text=crazy_input,
+        user_id=user_id,
+        session_id=f"crazy_{uuid.uuid4().hex}",
+        session_service=session_service,
+    )
+
+    market_md, crazy_md = await asyncio.gather(market_task, crazy_task)
+
+    history["market_analysis_md"] = market_md
+    history["crazy_ideas_md"] = crazy_md
+    history["brainstorm_parallel_md"] = "\n\n".join([block for block in [market_md, crazy_md] if block])
+    history["brainstorm_parallel_prompt"] = "Parallel ADK execution of MarketAnalysisAgent and CrazyIdeaAgent."
+
+    # ---------------------------
+    # Stage 1B: Idea Cooker
+    # ---------------------------
+    progress_cb(2.0, "Idea Cooker", "Synthesizing tradeoffs and product snapshot...")
+
+    idea_cooker_input = _build_stage_input(
+        founder_json=payload,
+        founder_md=founder_md,
+        history=history,
+        stage_title="Idea Cooker",
+        extra_sections={
+            "MARKET_ANALYSIS_OUTPUT": history.get("market_analysis_md", ""),
+            "CRAZY_IDEAS_OUTPUT": history.get("crazy_ideas_md", ""),
+        },
+    )
+
+    idea_cooker_md = await _run_agent_once(
+        agent=idea_cooker_agent,
+        input_text=idea_cooker_input,
+        user_id=user_id,
+        session_id=f"idea_cooker_{uuid.uuid4().hex}",
+        session_service=session_service,
+    )
+
+    history["idea_cooker_md"] = idea_cooker_md
+    history["idea_cooker_prompt"] = idea_cooker_agent.instruction
+    history["brainstorm_md"] = idea_cooker_md
+    history["brainstorm_prompt"] = idea_cooker_agent.instruction
+
+    # ---------------------------
+    # Stage 2A: Theme & Epic Generator
+    # ---------------------------
+    progress_cb(3.0, "Theme & Epic Generator", "Generating themes and epics...")
+
+    theme_input = _build_stage_input(
+        founder_json=payload,
+        founder_md=founder_md,
+        history=history,
+        stage_title="Theme & Epic Generator",
+        extra_sections={
+            "FINAL_PRODUCT_SNAPSHOT_MD": history.get("brainstorm_md", ""),
+        },
+    )
+
+    theme_md = await _run_agent_once(
+        agent=theme_epic_agent,
+        input_text=theme_input,
+        user_id=user_id,
+        session_id=f"theme_epic_{uuid.uuid4().hex}",
+        session_service=session_service,
+    )
+
+    history["theme_epic_md"] = theme_md
+    history["theme_epic_prompt"] = theme_epic_agent.instruction
+
+    # ---------------------------
+    # Stage 2B: Roadmap Generator
+    # ---------------------------
+    progress_cb(4.0, "Roadmap Generator", "Building strategic roadmap...")
+
+    roadmap_input = _build_stage_input(
+        founder_json=payload,
+        founder_md=founder_md,
+        history=history,
+        stage_title="Roadmap Generator",
+        extra_sections={
+            "FINAL_PRODUCT_SNAPSHOT_MD": history.get("brainstorm_md", ""),
+            "THEME_EPIC_MD": history.get("theme_epic_md", ""),
+        },
+    )
+
+    roadmap_md = await _run_agent_once(
+        agent=roadmap_agent,
+        input_text=roadmap_input,
+        user_id=user_id,
+        session_id=f"roadmap_{uuid.uuid4().hex}",
+        session_service=session_service,
+    )
+
+    history["roadmap_generator_md"] = roadmap_md
+    history["roadmap_generator_prompt"] = roadmap_agent.instruction
+    history["roadmap_md"] = "\n\n".join([block for block in [history.get("theme_epic_md", ""), roadmap_md] if block])
+    history["roadmap_prompt"] = "\n\n".join([
+        theme_epic_agent.instruction,
+        roadmap_agent.instruction,
+    ])
+
+    # ---------------------------
+    # Stage 3A: Feature Generation
+    # ---------------------------
+    progress_cb(5.0, "Feature Generation", "Generating feature list...")
+
+    feature_input = _build_stage_input(
+        founder_json=payload,
+        founder_md=founder_md,
+        history=history,
+        stage_title="Feature Generation",
+        extra_sections={
+            "FINAL_PRODUCT_SNAPSHOT_MD": history.get("brainstorm_md", ""),
+            "ROADMAP_MD": history.get("roadmap_md", ""),
+        },
+    )
+
+    feature_md = await _run_agent_once(
+        agent=feature_agent,
+        input_text=feature_input,
+        user_id=user_id,
+        session_id=f"feature_generation_{uuid.uuid4().hex}",
+        session_service=session_service,
+    )
+
+    history["feature_generation_md"] = feature_md
+    history["feature_generation_prompt"] = feature_agent.instruction
+
+    # ---------------------------
+    # Stage 3B: Prioritization & RICE
+    # ---------------------------
+    progress_cb(6.0, "Prioritization & RICE", "Scoring and sequencing features...")
+
+    prioritization_input = _build_stage_input(
+        founder_json=payload,
+        founder_md=founder_md,
+        history=history,
+        stage_title="Prioritization & RICE",
+        extra_sections={
+            "FINAL_PRODUCT_SNAPSHOT_MD": history.get("brainstorm_md", ""),
+            "FEATURE_LIST_OUTPUT": history.get("feature_generation_md", ""),
+        },
+    )
+
+    prioritization_md = await _run_agent_once(
+        agent=prioritization_agent,
+        input_text=prioritization_input,
+        user_id=user_id,
+        session_id=f"prioritization_{uuid.uuid4().hex}",
+        session_service=session_service,
+    )
+
+    history["prioritization_rice_md"] = prioritization_md
+    history["prioritization_rice_prompt"] = prioritization_agent.instruction
+    history["feature_prioritization_md"] = "\n\n".join([
+        block for block in [history.get("feature_generation_md", ""), prioritization_md] if block
+    ])
+    history["feature_prompt"] = "\n\n".join([
+        feature_agent.instruction,
+        prioritization_agent.instruction,
+    ])
+
+    # ---------------------------
+    # Stage 4A: OKR Generation
+    # ---------------------------
+    progress_cb(7.0, "OKR Generation", "Creating OKRs...")
+
+    okr_input = _build_stage_input(
+        founder_json=payload,
+        founder_md=founder_md,
+        history=history,
+        stage_title="OKR Generation",
+        extra_sections={
+            "FINAL_PRODUCT_SNAPSHOT_MD": history.get("brainstorm_md", ""),
+            "FEATURE_ROADMAP_MD": history.get("feature_prioritization_md", ""),
+        },
+    )
+
+    okr_md = await _run_agent_once(
+        agent=okr_agent,
+        input_text=okr_input,
+        user_id=user_id,
+        session_id=f"okr_{uuid.uuid4().hex}",
+        session_service=session_service,
+    )
+
+    history["okr_output_md"] = okr_md
+    history["okr_output_prompt"] = okr_agent.instruction
+
+    # ---------------------------
+    # Stage 4B: Three-Month Planner
+    # ---------------------------
+    progress_cb(8.0, "Three-Month Planner", "Building execution plan...")
+
+    planner_input = _build_stage_input(
+        founder_json=payload,
+        founder_md=founder_md,
+        history=history,
+        stage_title="Three-Month Planner",
+        extra_sections={
+            "FINAL_PRODUCT_SNAPSHOT_MD": history.get("brainstorm_md", ""),
+            "FEATURE_ROADMAP_MD": history.get("feature_prioritization_md", ""),
+            "OKR_OUTPUT": history.get("okr_output_md", ""),
+        },
+    )
+
+    planner_md = await _run_agent_once(
+        agent=planner_agent,
+        input_text=planner_input,
+        user_id=user_id,
+        session_id=f"planner_{uuid.uuid4().hex}",
+        session_service=session_service,
+    )
+
+    history["planner_md"] = planner_md
+    history["planner_prompt"] = planner_agent.instruction
+    history["okr_planning_md"] = "\n\n".join([
+        block for block in [history.get("okr_output_md", ""), planner_md] if block
+    ])
+    history["okr_prompt"] = "\n\n".join([
+        okr_agent.instruction,
+        planner_agent.instruction,
+    ])
+
+    # ---------------------------
+    # Final stitched report
+    # ---------------------------
+    history["final_report_md"] = _build_final_report(history)
+
+    return history
+
+
+__all__ = [
+    "run_multi_agent_adk",
+]
