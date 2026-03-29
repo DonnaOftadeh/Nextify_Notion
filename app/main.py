@@ -6,10 +6,23 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Tuple
 import asyncio, uuid, time, os, re
 from pathlib import Path
-
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv("app/.env")
+import os
 
+BASE_DIR = Path(__file__).resolve().parent
+
+# load .env from app/
+load_dotenv(BASE_DIR / ".env")
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+print("GEMINI KEY:", GEMINI_API_KEY[:10] if GEMINI_API_KEY else "NOT FOUND")
+
+if GEMINI_API_KEY:
+    os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY
+else:
+    print("❌ GEMINI API KEY NOT LOADED")
 from .adk_agents import run_multi_agent_adk
 
 # ReportLab
@@ -481,3 +494,12 @@ async def debug_history(job_id: str):
 @app.get("/")
 async def root():
     return {"ok": True, "service": "Nextify Backend (ReportLab PDF)"}
+
+@app.get("/test-env")
+async def test_env():
+    import os
+    key = os.getenv("GOOGLE_API_KEY")
+    return {
+        "key_loaded": bool(key),
+        "key_preview": key[:10] if key else None
+    }

@@ -145,7 +145,6 @@ env.bak/
 venv.bak/
 
 # Secrets
-.env
 app/.env
 # Spyder project settings
 .spyderproject

@@ -34,7 +34,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "gemini-2.0-flash"
 APP_NAME = "nextify_adk_app"
 
 
@@ -861,20 +861,18 @@ async def _run_agent_once(
     )
 
     final_text = ""
+
     async for event in runner.run_async(
         user_id=user_id,
         session_id=session_id,
         new_message=user_message,
-    ):
-        if event.is_final_response() and event.content and event.content.parts:
-            text_parts = []
-            for part in event.content.parts:
-                if getattr(part, "text", None):
-                    text_parts.append(part.text)
-            if text_parts:
-                final_text = "\n".join(text_parts).strip()
-
-    return final_text
+):
+        if event.content and event.content.parts:
+         for part in event.content.parts:
+            if getattr(part, "text", None):
+                final_text += part.text
+    
+    return final_text.strip()
 
 
 async def _evaluate_section(
@@ -911,26 +909,20 @@ async def _evaluate_section(
     if progress_cb:
         progress_cb(progress_index, f"Evaluation: {stage_title}", "Running evaluation...")
 
-    eval_input = "\n\n".join([
-        f"# STAGE_NAME\n{stage_title}",
-        f"## STAGE_KEY\n{stage_key}",
-        "## ORIGINAL_PROMPT",
-        STAGE_PROMPTS.get(stage_key, ""),
-        "## FOUNDER_IDEA_FORM_MARKDOWN",
-        founder_md,
-        "## FOUNDER_IDEA_FORM_JSON",
-        _json_pretty(founder_json),
-        "## FINAL_PRODUCT_SNAPSHOT_MD",
-        history.get("brainstorm_md", ""),
-        "## FEATURE_ROADMAP_MD",
-        history.get("feature_prioritization_md", ""),
-        "## OKR_OUTPUT",
-        history.get("okr_output_md", ""),
-        "## THREE_MONTH_PLAN_MD",
-        history.get("planner_md", ""),
-        "## STAGE_CONTENT",
-        stage_content,
-    ])
+eval_input = "\n\n".join([
+    f"# STAGE NAME\n{stage_title}",
+    f"## STAGE KEY\n{stage_key}",
+    "## ORIGINAL PROMPT",
+    str(STAGE_PROMPTS.get(stage_key, "")),
+    "## FOUNDER IDEA FORM MARKDOWN",
+    str(founder_md),
+    "## FOUNDER IDEA FORM JSON",
+    str(json_pretty(founder_json)),
+    "## FINAL PRODUCT SNAPSHOT MD",
+    str(history.get("brainstorm_md", "")),
+    "## FEATURE ROADMAP MD",
+    str(history.get("feature_prioritization_md", "")),
+])
 
     session_service = InMemorySessionService()
     user_id = "nextify_eval_user"
