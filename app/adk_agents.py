@@ -32,11 +32,14 @@ from google.adk.agents import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
+import os
 
+# -----------------------------------------------------------------------------
+# CONFIG (FIXED: use .env)
+# -----------------------------------------------------------------------------
 
-MODEL_NAME = "gemini-2.0-flash"
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 APP_NAME = "nextify_adk_app"
-
 
 # -----------------------------------------------------------------------------
 # Agent definitions
@@ -909,20 +912,21 @@ async def _evaluate_section(
     if progress_cb:
         progress_cb(progress_index, f"Evaluation: {stage_title}", "Running evaluation...")
 
-eval_input = "\n\n".join([
-    f"# STAGE NAME\n{stage_title}",
-    f"## STAGE KEY\n{stage_key}",
-    "## ORIGINAL PROMPT",
-    str(STAGE_PROMPTS.get(stage_key, "")),
-    "## FOUNDER IDEA FORM MARKDOWN",
-    str(founder_md),
-    "## FOUNDER IDEA FORM JSON",
-    str(json_pretty(founder_json)),
-    "## FINAL PRODUCT SNAPSHOT MD",
-    str(history.get("brainstorm_md", "")),
-    "## FEATURE ROADMAP MD",
-    str(history.get("feature_prioritization_md", "")),
-])
+    # ✅ FIXED: indentation + function name
+    eval_input = "\n\n".join([
+        f"# STAGE NAME\n{stage_title}",
+        f"## STAGE KEY\n{stage_key}",
+        "## ORIGINAL PROMPT",
+        str(STAGE_PROMPTS.get(stage_key, "")),
+        "## FOUNDER IDEA FORM MARKDOWN",
+        str(founder_md),
+        "## FOUNDER IDEA FORM JSON",
+        str(_json_pretty(founder_json)),
+        "## FINAL PRODUCT SNAPSHOT MD",
+        str(history.get("brainstorm_md", "")),
+        "## FEATURE ROADMAP MD",
+        str(history.get("feature_prioritization_md", "")),
+    ])
 
     session_service = InMemorySessionService()
     user_id = "nextify_eval_user"
@@ -943,17 +947,21 @@ def _extract_comment_summary(eval_md: str) -> str:
 
     if "[COMMENT_SUMMARY]" in eval_md:
         block = eval_md.split("[COMMENT_SUMMARY]", 1)[1]
+
         for stop in ["[ISSUES_AND_FLAGS]", "[IMPROVEMENT_SUGGESTIONS]", "[REWRITTEN_VERSION]"]:
             if stop in block:
                 block = block.split(stop, 1)[0]
+
         lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
         return "\n".join(lines[:5])
 
     if "[ISSUES_AND_FLAGS]" in eval_md:
         block = eval_md.split("[ISSUES_AND_FLAGS]", 1)[1]
+
         for stop in ["[IMPROVEMENT_SUGGESTIONS]", "[REWRITTEN_VERSION]"]:
             if stop in block:
                 block = block.split(stop, 1)[0]
+
         lines = [ln.strip() for ln in block.splitlines() if ln.strip()]
         return "\n".join(lines[:5])
 
@@ -1118,8 +1126,8 @@ async def run_multi_agent_adk(
     history["roadmap_generator_prompt"] = roadmap_agent.instruction
     history["roadmap_md"] = "\n\n".join([block for block in [history.get("theme_epic_md", ""), roadmap_md] if block])
     history["roadmap_prompt"] = "\n\n".join([
-        theme_epic_agent.instruction,
-        roadmap_agent.instruction,
+        str(theme_epic_agent.instruction),
+        str(roadmap_agent.instruction),
     ])
 
     # ---------------------------
@@ -1179,8 +1187,8 @@ async def run_multi_agent_adk(
         block for block in [history.get("feature_generation_md", ""), prioritization_md] if block
     ])
     history["feature_prompt"] = "\n\n".join([
-        feature_agent.instruction,
-        prioritization_agent.instruction,
+        str(feature_agent.instruction),
+        str(prioritization_agent.instruction),
     ])
 
     # ---------------------------
@@ -1241,8 +1249,8 @@ async def run_multi_agent_adk(
         block for block in [history.get("okr_output_md", ""), planner_md] if block
     ])
     history["okr_prompt"] = "\n\n".join([
-        okr_agent.instruction,
-        planner_agent.instruction,
+        str(okr_agent.instruction),
+        str(planner_agent.instruction),
     ])
 
     # ---------------------------
