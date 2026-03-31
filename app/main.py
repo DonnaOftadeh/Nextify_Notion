@@ -17,7 +17,7 @@ load_dotenv(BASE_DIR / ".env")
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-print("GEMINI KEY:", GEMINI_API_KEY[:10] if GEMINI_API_KEY else "NOT FOUND")
+print("GEMINI KEY:", "LOADED" if GEMINI_API_KEY else "NOT FOUND")
 
 if GEMINI_API_KEY:
     os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY

@@ -34,6 +34,8 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 import os
 
+from streamlit import text
+
 # -----------------------------------------------------------------------------
 # CONFIG (FIXED: use .env)
 # -----------------------------------------------------------------------------
@@ -872,8 +874,9 @@ async def _run_agent_once(
 ):
         if event.content and event.content.parts:
          for part in event.content.parts:
-            if getattr(part, "text", None):
-                final_text += part.text
+            text = getattr(part, "text", None)
+            if text:
+                final_text += text
     
     return final_text.strip()
 
