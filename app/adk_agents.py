@@ -40,8 +40,9 @@ from streamlit import text
 # CONFIG (FIXED: use .env)
 # -----------------------------------------------------------------------------
 
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 APP_NAME = "nextify_adk_app"
+EVAL_MODEL = os.getenv("GEMINI_EVAL_MODEL", "gemini-2.5-flash-lite")
 
 # -----------------------------------------------------------------------------
 # Agent definitions
@@ -653,7 +654,7 @@ Rules:
 
 evaluation_agent = LlmAgent(
     name="EvaluatorAgent",
-    model=MODEL_NAME,
+    model=EVAL_MODEL,
     instruction="""
 You are the **Evaluation & Quality Agent** for Nextify.
 
