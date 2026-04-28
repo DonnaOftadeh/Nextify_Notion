@@ -1,33 +1,28 @@
 # --- Nextify backend runtime ---
-fastapi==0.111.0
-uvicorn[standard]==0.30.6
-pydantic==2.8.2
-python-dotenv==1.0.1
-fpdf2==2.7.9
+fastapi
+uvicorn[standard]
+pydantic
 python-dotenv
+fpdf2
 httpx
 slowapi
 markdown2
-reportlab 
+reportlab
 
 # Gemini (Google Generative AI)
-google-generativeai==0.7.2
-tenacity==8.2.3
-weasyprint==61.2
+google-generativeai
+tenacity
+weasyprint
 
+# Streamlit app
+streamlit
+pandas
+plotly
+seaborn
+matplotlib
+numpy
+altair
+pyyaml
 
-       
-
-# app/app.py
-streamlit>=1.36
-pandas>=2.2
-plotly>=5.22
-seaborn>=0.13
-matplotlib>=3.8
-
-
-numpy>=1.26
-altair>=5.3   
-pyyaml 
-
+# Google ADK
 git+https://github.com/google/adk-python.git
