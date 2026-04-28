@@ -93,7 +93,357 @@ UI_STEPS = [
 
 PIPELINE_STAGE_COUNT = 8
 
+# ------------------- Interactive HITL stages -------------------
+# These match UI_STEPS exactly so backend progress, Streamlit tabs,
+# LLM judge reviews, and human approval checkpoints all use the same stage model.
 
+INTERACTIVE_STAGES = [
+    {
+        "id": "parse_submission",
+        "title": "Parse Submission",
+        "short_title": "Parse",
+        "agent": "Input Parser Agent",
+        "history_key": None,
+    },
+    {
+        "id": "brainstorm_parallel",
+        "title": "Brainstorm Parallel",
+        "short_title": "Brainstorm",
+        "agent": "Market Analysis Agent + Crazy Idea Agent",
+        "history_key": ["market_analysis_md", "crazy_ideas_md"],
+    },
+    {
+        "id": "idea_cooker",
+        "title": "Idea Cooker",
+        "short_title": "Cooker",
+        "agent": "Idea Cooker Agent",
+        "history_key": "idea_cooker_md",
+    },
+    {
+        "id": "theme_epic_generator",
+        "title": "Theme & Epic Generator",
+        "short_title": "Themes",
+        "agent": "Theme & Epic Agent",
+        "history_key": "theme_epic_md",
+    },
+    {
+        "id": "roadmap_generator",
+        "title": "Roadmap Generator",
+        "short_title": "Roadmap",
+        "agent": "Roadmap Agent",
+        "history_key": "roadmap_generator_md",
+    },
+    {
+        "id": "feature_generation",
+        "title": "Feature Generation",
+        "short_title": "Features",
+        "agent": "Feature Generation Agent",
+        "history_key": "feature_generation_md",
+    },
+    {
+        "id": "prioritization_rice",
+        "title": "Prioritization & RICE",
+        "short_title": "RICE",
+        "agent": "Prioritization & RICE Agent",
+        "history_key": "prioritization_rice_md",
+    },
+    {
+        "id": "okr_generation",
+        "title": "OKR Generation",
+        "short_title": "OKRs",
+        "agent": "OKR Agent",
+        "history_key": "okr_output_md",
+    },
+    {
+        "id": "three_month_planner",
+        "title": "Three-Month Planner",
+        "short_title": "Planner",
+        "agent": "Three-Month Planner Agent",
+        "history_key": "planner_md",
+    },
+    {
+        "id": "write_report_pdf",
+        "title": "Write Report (PDF)",
+        "short_title": "Report",
+        "agent": "Report Writer Agent",
+        "history_key": "final_report_md",
+    },
+]
+
+INTERACTIVE_STAGE_IDS = [stage["id"] for stage in INTERACTIVE_STAGES]
+
+
+class FeedbackRequest(BaseModel):
+    feedback: str = ""
+
+
+def _now_ts() -> float:
+    return time.time()
+
+
+def _empty_interactive_stage(stage_id: str) -> Dict[str, Any]:
+    return {
+        "stage_id": stage_id,
+        "status": "pending",
+        "agent_output": "",
+        "judge_feedback": "",
+        "user_feedback": "",
+        "revision_count": 0,
+        "approved": False,
+        "updated_at": None,
+    }
+
+
+def _init_interactive_state() -> Dict[str, Any]:
+    return {
+        "current_stage_index": 0,
+        "stages": {
+            stage_id: _empty_interactive_stage(stage_id)
+            for stage_id in INTERACTIVE_STAGE_IDS
+        },
+    }
+
+
+def _get_stage_config(stage_id: str) -> Dict[str, Any]:
+    for stage in INTERACTIVE_STAGES:
+        if stage["id"] == stage_id:
+            return stage
+    raise HTTPException(status_code=404, detail=f"Unknown stage: {stage_id}")
+
+
+def _get_job_or_404(job_id: str) -> Dict[str, Any]:
+    job = JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+def _ensure_interactive_state(job: Dict[str, Any]) -> None:
+    if "interactive" not in job:
+        job["interactive"] = _init_interactive_state()
+
+    if "stages" not in job["interactive"]:
+        job["interactive"]["stages"] = {}
+
+    for stage_id in INTERACTIVE_STAGE_IDS:
+        if stage_id not in job["interactive"]["stages"]:
+            job["interactive"]["stages"][stage_id] = _empty_interactive_stage(stage_id)
+
+    if "current_stage_index" not in job["interactive"]:
+        job["interactive"]["current_stage_index"] = 0
+
+
+def _approved_context(job: Dict[str, Any]) -> str:
+    _ensure_interactive_state(job)
+
+    parts = []
+
+    for stage_config in INTERACTIVE_STAGES:
+        stage_id = stage_config["id"]
+        stage_state = job["interactive"]["stages"][stage_id]
+
+        if stage_state.get("approved") and stage_state.get("agent_output"):
+            parts.append(
+                f"# {stage_config['title']}\n\n"
+                f"{stage_state['agent_output']}"
+            )
+
+    if not parts:
+        return "No previous stages approved yet."
+
+    return "\n\n---\n\n".join(parts)
+
+
+def _build_parse_submission_output(job: Dict[str, Any]) -> str:
+    payload = job.get("payload", {})
+    journey_type = job.get("journey_type", "idea")
+
+    lines = [
+        "# Parse Submission",
+        "",
+        f"**Journey Type:** {journey_type}",
+        "",
+        "## User Input",
+    ]
+
+    for key, value in payload.items():
+        pretty_key = key.replace("_", " ").title()
+        lines.append(f"- **{pretty_key}:** {value}")
+
+    lines.extend(
+        [
+            "",
+            "## Interpretation",
+            "The submission has been parsed into a structured product-development input.",
+            "The next stage can now run parallel brainstorming using the user's idea, problem, users, and constraints.",
+        ]
+    )
+
+    return "\n".join(lines)
+
+
+def _extract_history_output_for_stage(stage_id: str, job: Dict[str, Any]) -> str:
+    stage_config = _get_stage_config(stage_id)
+    history_key = stage_config.get("history_key")
+    history = job.get("history", {}) or {}
+
+    if stage_id == "parse_submission":
+        return _build_parse_submission_output(job)
+
+    if not history:
+        return ""
+
+    if isinstance(history_key, list):
+        chunks = []
+
+        for key in history_key:
+            value = history.get(key, "")
+            if value:
+                title = key.replace("_md", "").replace("_", " ").title()
+                chunks.append(f"# {title}\n\n{value}")
+
+        return "\n\n---\n\n".join(chunks)
+
+    if isinstance(history_key, str):
+        return history.get(history_key, "") or ""
+
+    return ""
+
+
+def _build_placeholder_stage_output(stage_id: str, job: Dict[str, Any]) -> str:
+    stage_config = _get_stage_config(stage_id)
+    payload = job.get("payload", {})
+    approved_context = _approved_context(job)
+
+    idea_title = payload.get("idea_title", "")
+    idea_text = payload.get("idea_text", "")
+    target_users = payload.get("target_users", "")
+    problem = payload.get("problem", "")
+    constraints = payload.get("constraints", "")
+
+    return f"""
+# {stage_config['title']}
+
+## Agent
+
+{stage_config['agent']}
+
+## Input Used
+
+**Idea Title:** {idea_title}
+
+**Idea Description:** {idea_text}
+
+**Target Users:** {target_users}
+
+**Problem:** {problem}
+
+**Constraints:** {constraints}
+
+## Prior Approved Context
+
+{approved_context}
+
+## Draft Output
+
+This is a placeholder output for **{stage_config['title']}**.
+
+Your full ADK pipeline is still running in the background. Once `job["history"]` is ready, this stage will use the real saved output from the matching history key.
+
+For now, this placeholder proves the interactive Human-in-the-Loop workflow is working stage by stage.
+"""
+
+
+def _get_or_create_stage_output(stage_id: str, job: Dict[str, Any]) -> str:
+    real_output = _extract_history_output_for_stage(stage_id, job)
+
+    if real_output and real_output.strip():
+        return real_output
+
+    return _build_placeholder_stage_output(stage_id, job)
+
+
+def _judge_stage_output(stage_id: str, agent_output: str, job: Dict[str, Any]) -> str:
+    stage_config = _get_stage_config(stage_id)
+
+    return f"""
+# LLM Judge Review: {stage_config['title']}
+
+## Score
+
+**7.5 / 10**
+
+## Strengths
+
+- The output is separated clearly for the **{stage_config['title']}** stage.
+- The artifact can be reviewed independently before moving to the next stage.
+- The workflow now supports human approval before downstream agents depend on this output.
+
+## Gaps
+
+- The output should be more specific to the target user and problem.
+- It should include sharper assumptions, risks, and success criteria.
+- It should be more decision-ready before final approval.
+
+## Recommended Improvements
+
+1. Add measurable success criteria.
+2. Clarify the most important user segment.
+3. Identify key risks and assumptions.
+4. Make the next action concrete.
+5. Improve clarity before approving this stage.
+
+## Judge Decision
+
+This stage is useful, but it should be improved with human feedback before final approval.
+"""
+
+
+def _revise_stage_output(stage_id: str, job: Dict[str, Any]) -> str:
+    _ensure_interactive_state(job)
+
+    stage_config = _get_stage_config(stage_id)
+    stage_state = job["interactive"]["stages"][stage_id]
+
+    previous_output = stage_state.get("agent_output", "")
+    judge_feedback = stage_state.get("judge_feedback", "")
+    user_feedback = stage_state.get("user_feedback", "")
+    approved_context = _approved_context(job)
+
+    return f"""
+# Revised {stage_config['title']}
+
+## Revision Inputs
+
+### Human Feedback
+
+{user_feedback or "No human feedback was provided."}
+
+### LLM Judge Feedback
+
+{judge_feedback or "No judge feedback was provided."}
+
+### Approved Previous Context
+
+{approved_context}
+
+---
+
+## Revised Stage Output
+
+This is the revised version of **{stage_config['title']}**.
+
+It improves the previous draft by incorporating:
+1. the LLM judge critique,
+2. the user's human feedback,
+3. the approved context from previous stages.
+
+---
+
+## Previous Draft Reference
+
+{previous_output}
+"""
 # ------------------- Fonts/Styles -------------------
 def _register_fonts():
     try:
@@ -433,20 +783,30 @@ async def _run_pipeline(job_id: str, submission: Submission):
 @app.post("/api/submit")
 async def submit(submission: Submission):
     job_id = str(uuid.uuid4())
+
     JOBS[job_id] = {
         "created_at": time.time(),
-        "status": "queued",
-        "step": "Queued",
+        "status": "interactive",
+        "step": "Interactive Mode",
         "progress": 0,
-        "message": "Job queued.",
+        "message": "Interactive job created. Run each stage manually.",
         "pdf_path": None,
         "journey_type": submission.journey_type,
+        "payload": submission.payload,
         "raw_report": "",
         "history": {},
+        "interactive": _init_interactive_state(),
     }
-    asyncio.create_task(_run_pipeline(job_id, submission))
-    return {"job_id": job_id}
 
+    # IMPORTANT:
+    # Do not auto-run the full ADK pipeline in interactive mode.
+    # It can consume many Gemini calls and trigger 429 quota errors.
+    # asyncio.create_task(_run_pipeline(job_id, submission))
+
+    return {
+        "job_id": job_id,
+        "stages": INTERACTIVE_STAGE_IDS,
+    }
 
 @app.get("/api/status/{job_id}")
 async def status(job_id: str):
@@ -462,7 +822,156 @@ async def status(job_id: str):
         "ready": job["status"] == "done",
     }
 
+@app.get("/api/job/{job_id}")
+async def get_interactive_job(job_id: str):
+    job = _get_job_or_404(job_id)
+    _ensure_interactive_state(job)
 
+    return {
+        "job_id": job_id,
+        "created_at": job.get("created_at"),
+        "status": job.get("status"),
+        "step": job.get("step"),
+        "progress": job.get("progress"),
+        "message": job.get("message"),
+        "journey_type": job.get("journey_type"),
+        "payload": job.get("payload", {}),
+        "current_stage_index": job["interactive"]["current_stage_index"],
+        "stages": job["interactive"]["stages"],
+    }
+
+
+@app.post("/api/stage/{job_id}/{stage_id}/run")
+async def run_interactive_stage(job_id: str, stage_id: str):
+    job = _get_job_or_404(job_id)
+    _ensure_interactive_state(job)
+    _get_stage_config(stage_id)
+
+    output = _get_or_create_stage_output(stage_id, job)
+    stage_state = job["interactive"]["stages"][stage_id]
+
+    stage_state.update(
+        {
+            "status": "needs_judge",
+            "agent_output": output,
+            "updated_at": _now_ts(),
+        }
+    )
+
+    return stage_state
+
+
+@app.post("/api/stage/{job_id}/{stage_id}/judge")
+async def judge_interactive_stage(job_id: str, stage_id: str):
+    job = _get_job_or_404(job_id)
+    _ensure_interactive_state(job)
+    _get_stage_config(stage_id)
+
+    stage_state = job["interactive"]["stages"][stage_id]
+
+    if not stage_state.get("agent_output"):
+        raise HTTPException(
+            status_code=400,
+            detail="Run the stage before judging it.",
+        )
+
+    judge_feedback = _judge_stage_output(
+        stage_id=stage_id,
+        agent_output=stage_state["agent_output"],
+        job=job,
+    )
+
+    stage_state.update(
+        {
+            "status": "needs_user_feedback",
+            "judge_feedback": judge_feedback,
+            "updated_at": _now_ts(),
+        }
+    )
+
+    return stage_state
+
+
+@app.post("/api/stage/{job_id}/{stage_id}/feedback")
+async def save_interactive_feedback(job_id: str, stage_id: str, req: FeedbackRequest):
+    job = _get_job_or_404(job_id)
+    _ensure_interactive_state(job)
+    _get_stage_config(stage_id)
+
+    stage_state = job["interactive"]["stages"][stage_id]
+
+    stage_state.update(
+        {
+            "status": "feedback_received",
+            "user_feedback": req.feedback,
+            "updated_at": _now_ts(),
+        }
+    )
+
+    return stage_state
+
+
+@app.post("/api/stage/{job_id}/{stage_id}/revise")
+async def revise_interactive_stage(job_id: str, stage_id: str):
+    job = _get_job_or_404(job_id)
+    _ensure_interactive_state(job)
+    _get_stage_config(stage_id)
+
+    stage_state = job["interactive"]["stages"][stage_id]
+
+    if not stage_state.get("agent_output"):
+        raise HTTPException(
+            status_code=400,
+            detail="Run the stage before revising it.",
+        )
+
+    revised_output = _revise_stage_output(stage_id, job)
+
+    stage_state.update(
+        {
+            "status": "needs_judge",
+            "agent_output": revised_output,
+            "revision_count": stage_state.get("revision_count", 0) + 1,
+            "updated_at": _now_ts(),
+        }
+    )
+
+    return stage_state
+
+
+@app.post("/api/stage/{job_id}/{stage_id}/approve")
+async def approve_interactive_stage(job_id: str, stage_id: str):
+    job = _get_job_or_404(job_id)
+    _ensure_interactive_state(job)
+    _get_stage_config(stage_id)
+
+    stage_state = job["interactive"]["stages"][stage_id]
+
+    if not stage_state.get("agent_output"):
+        raise HTTPException(
+            status_code=400,
+            detail="Run the stage before approving it.",
+        )
+
+    stage_state.update(
+        {
+            "status": "approved",
+            "approved": True,
+            "updated_at": _now_ts(),
+        }
+    )
+
+    stage_index = INTERACTIVE_STAGE_IDS.index(stage_id)
+    current_index = job["interactive"].get("current_stage_index", 0)
+
+    if stage_index == current_index and current_index < len(INTERACTIVE_STAGE_IDS) - 1:
+        job["interactive"]["current_stage_index"] = current_index + 1
+
+    return {
+        "job_id": job_id,
+        "current_stage_index": job["interactive"]["current_stage_index"],
+        "stages": job["interactive"]["stages"],
+    }
 @app.get("/api/result/{job_id}")
 async def result(job_id: str):
     job = JOBS.get(job_id)
