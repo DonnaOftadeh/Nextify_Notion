@@ -455,7 +455,7 @@ with st.sidebar:
         st.info("No judge feedback yet. Run the stage, then click **Judge**.")
 
 # ============================================================
-# STAGE TABS
+# STAGE TABS — WIZARD STYLE
 # ============================================================
 
 st.markdown("## 🧩 Stage-by-Stage Workspace")
@@ -477,112 +477,287 @@ for stage_config in STAGES:
 
 stage_tabs = st.tabs(tab_titles)
 
+
+def get_next_stage_id(current_stage_id):
+    stage_ids = [stage["id"] for stage in STAGES]
+
+    if current_stage_id not in stage_ids:
+        return None
+
+    current_index = stage_ids.index(current_stage_id)
+
+    if current_index >= len(stage_ids) - 1:
+        return None
+
+    return stage_ids[current_index + 1]
+
+
+def run_stage(job_id, stage_id):
+    return api_post(f"/api/stage/{job_id}/{stage_id}/run")
+
+
+def judge_stage(job_id, stage_id):
+    return api_post(f"/api/stage/{job_id}/{stage_id}/judge")
+
+
+def save_feedback(job_id, stage_id, feedback):
+    return api_post(
+        f"/api/stage/{job_id}/{stage_id}/feedback",
+        {"feedback": feedback},
+    )
+
+
+def revise_stage(job_id, stage_id, feedback=None):
+    if feedback is not None:
+        save_feedback(job_id, stage_id, feedback)
+
+    return api_post(f"/api/stage/{job_id}/{stage_id}/revise")
+
+
+def approve_stage(job_id, stage_id):
+    return api_post(f"/api/stage/{job_id}/{stage_id}/approve")
+
+
 for index, stage_config in enumerate(STAGES):
     stage_id = stage_config["id"]
     stage_state = job["stages"][stage_id]
+    next_stage_id = get_next_stage_id(stage_id)
 
     with stage_tabs[index]:
-        if st.button(
-            f"Select {stage_config['short_title']} for Judge Sidebar",
-            key=f"select_{stage_id}",
-        ):
-            st.session_state.selected_stage_id = stage_id
-            st.rerun()
+        st.session_state.selected_stage_id = stage_id
 
-        left_col, right_col = st.columns([3, 1])
+        st.markdown("### Current Agent")
+        st.subheader(stage_config["title"])
+        st.caption(f"Agent: {stage_config['agent']}")
+        st.write(stage_config["description"])
 
-        with left_col:
-            st.markdown('<div class="nextify-card">', unsafe_allow_html=True)
+        status = stage_state.get("status", "pending")
+        approved = stage_state.get("approved", False)
+        revision_count = stage_state.get("revision_count", 0)
 
-            st.subheader(stage_config["title"])
-            st.caption(f"Agent: {stage_config['agent']}")
-            st.write(stage_config["description"])
+        status_col_1, status_col_2, status_col_3 = st.columns(3)
 
-            status = stage_state.get("status", "pending")
-            approved = stage_state.get("approved", False)
-            revision_count = stage_state.get("revision_count", 0)
+        with status_col_1:
+            st.metric("Stage status", status)
 
-            st.markdown(
-                f"""
-                **Status:** `{status}`  
-                **Approved:** `{approved}`  
-                **Revision count:** `{revision_count}`
-                """
-            )
+        with status_col_2:
+            st.metric("Approved", "Yes" if approved else "No")
 
-            st.divider()
+        with status_col_3:
+            st.metric("Revisions", revision_count)
 
-            if stage_state.get("agent_output"):
-                st.markdown("### 🤖 Agent Output")
+        st.divider()
+
+        # ----------------------------------------------------
+        # STEP 1 — GENERATE AGENT OUTPUT
+        # ----------------------------------------------------
+        st.markdown("## 1️⃣ Generate this agent output")
+
+        if not stage_state.get("agent_output"):
+            st.info("This agent has not generated an output yet.")
+
+            if st.button(
+                f"▶️ Generate {stage_config['title']}",
+                key=f"generate_{stage_id}",
+                type="primary",
+            ):
+                run_stage(job["job_id"], stage_id)
+                st.rerun()
+        else:
+            st.success("Agent output is ready.")
+
+            with st.expander("🤖 View / hide agent output", expanded=True):
                 st.markdown(stage_state["agent_output"])
-            else:
-                st.info("This stage has not been generated yet.")
 
-            st.markdown("### 💬 Human Feedback")
-            feedback_key = f"feedback_{stage_id}"
+            rerun_col_1, rerun_col_2 = st.columns([1, 3])
 
-            user_feedback = st.text_area(
-                "Tell the agent what to improve before approving this stage.",
-                key=feedback_key,
-                value=stage_state.get("user_feedback", ""),
-                height=120,
-            )
-
-            button_col_1, button_col_2, button_col_3, button_col_4, button_col_5 = st.columns(5)
-
-            with button_col_1:
-                if st.button("▶️ Run Agent", key=f"run_{stage_id}"):
-                    api_post(f"/api/stage/{job['job_id']}/{stage_id}/run")
+            with rerun_col_1:
+                if st.button(
+                    "🔄 Rerun agent from scratch",
+                    key=f"rerun_from_scratch_{stage_id}",
+                ):
+                    run_stage(job["job_id"], stage_id)
                     st.rerun()
 
-            with button_col_2:
-                judge_disabled = not bool(stage_state.get("agent_output"))
-
-                if st.button("⚖️ Judge", key=f"judge_{stage_id}", disabled=judge_disabled):
-                    api_post(f"/api/stage/{job['job_id']}/{stage_id}/judge")
-                    st.rerun()
-
-            with button_col_3:
-                if st.button("💾 Save Feedback", key=f"save_feedback_{stage_id}"):
-                    api_post(
-                        f"/api/stage/{job['job_id']}/{stage_id}/feedback",
-                        {"feedback": user_feedback},
-                    )
-                    st.rerun()
-
-            with button_col_4:
-                can_revise = bool(stage_state.get("agent_output")) and (
-                    bool(stage_state.get("judge_feedback")) or bool(user_feedback)
+            with rerun_col_2:
+                st.caption(
+                    "Use this if you want a fresh draft for this stage. "
+                    "It does not automatically approve the output."
                 )
 
-                if st.button("🔁 Revise", key=f"revise_{stage_id}", disabled=not can_revise):
-                    api_post(
-                        f"/api/stage/{job['job_id']}/{stage_id}/feedback",
-                        {"feedback": user_feedback},
+        st.divider()
+
+        # ----------------------------------------------------
+        # STEP 2 — JUDGE OUTPUT
+        # Judge output is NOT shown here. It only appears in sidebar.
+        # ----------------------------------------------------
+        st.markdown("## 2️⃣ Ask the LLM judge")
+
+        if not stage_state.get("agent_output"):
+            st.warning("Generate the agent output first before asking the judge.")
+        else:
+            judge_col_1, judge_col_2, judge_col_3 = st.columns([1.2, 1.2, 2])
+
+            with judge_col_1:
+                if st.button(
+                    "⚖️ Run judge",
+                    key=f"run_judge_{stage_id}",
+                ):
+                    judge_stage(job["job_id"], stage_id)
+                    st.session_state.selected_stage_id = stage_id
+                    st.rerun()
+
+            with judge_col_2:
+                if stage_state.get("judge_feedback"):
+                    if st.button(
+                        "🙈 Ignore judge",
+                        key=f"ignore_judge_{stage_id}",
+                    ):
+                        # We do not delete it from backend; we just mark preference in UI state.
+                        st.session_state[f"ignore_judge_{stage_id}"] = True
+                        st.success("Judge feedback ignored for your next revision.")
+                else:
+                    st.button(
+                        "🙈 Ignore judge",
+                        key=f"ignore_judge_disabled_{stage_id}",
+                        disabled=True,
                     )
-                    api_post(f"/api/stage/{job['job_id']}/{stage_id}/revise")
-                    st.rerun()
 
-            with button_col_5:
-                approve_disabled = not bool(stage_state.get("agent_output"))
+            with judge_col_3:
+                if stage_state.get("judge_feedback"):
+                    st.info(
+                        "Judge feedback is available in the left sidebar only. "
+                        "Use it manually, ignore it, or revise with it."
+                    )
+                else:
+                    st.caption("No judge feedback yet.")
 
-                if st.button("✅ Approve", key=f"approve_{stage_id}", disabled=approve_disabled):
-                    api_post(f"/api/stage/{job['job_id']}/{stage_id}/approve")
-                    st.rerun()
+        st.divider()
 
-            st.markdown("</div>", unsafe_allow_html=True)
+        # ----------------------------------------------------
+        # STEP 3 — HUMAN FEEDBACK
+        # ----------------------------------------------------
+        st.markdown("## 3️⃣ Add your own feedback")
 
-        with right_col:
-            st.markdown("### ⚖️ Judge Summary")
+        feedback_key = f"feedback_{stage_id}"
 
-            if stage_state.get("judge_feedback"):
-                st.markdown(stage_state["judge_feedback"])
-            else:
-                st.info("No judge review yet.")
+        user_feedback = st.text_area(
+            "Write what you want the agent to change.",
+            key=feedback_key,
+            value=stage_state.get("user_feedback", ""),
+            height=140,
+            placeholder=(
+                "Example: Make it more practical for a solo founder. "
+                "Add risks, scientific feasibility, MVP scope, and clearer next steps."
+            ),
+        )
 
-            st.markdown("### 🧑 Saved Human Feedback")
+        feedback_col_1, feedback_col_2 = st.columns([1, 3])
 
+        with feedback_col_1:
+            if st.button("💾 Save my feedback", key=f"save_user_feedback_{stage_id}"):
+                save_feedback(job["job_id"], stage_id, user_feedback)
+                st.rerun()
+
+        with feedback_col_2:
             if stage_state.get("user_feedback"):
-                st.write(stage_state["user_feedback"])
+                st.success("Human feedback is saved.")
             else:
-                st.caption("No human feedback saved yet.")
+                st.caption("You can revise with your feedback, judge feedback, or both.")
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # STEP 4 — REVISION MODE
+        # ----------------------------------------------------
+        st.markdown("## 4️⃣ Revise this stage")
+
+        if not stage_state.get("agent_output"):
+            st.warning("Generate the agent output first before revising.")
+        else:
+            has_judge = bool(stage_state.get("judge_feedback"))
+            has_human = bool(user_feedback.strip() or stage_state.get("user_feedback"))
+
+            rev_col_1, rev_col_2, rev_col_3 = st.columns(3)
+
+            with rev_col_1:
+                if st.button(
+                    "🔁 Revise with my feedback only",
+                    key=f"revise_human_only_{stage_id}",
+                    disabled=not has_human,
+                ):
+                    save_feedback(job["job_id"], stage_id, user_feedback)
+                    # Temporarily ignore judge in UI state
+                    st.session_state[f"revision_mode_{stage_id}"] = "human_only"
+                    revise_stage(job["job_id"], stage_id, user_feedback)
+                    st.rerun()
+
+            with rev_col_2:
+                if st.button(
+                    "⚖️ Revise with judge only",
+                    key=f"revise_judge_only_{stage_id}",
+                    disabled=not has_judge,
+                ):
+                    st.session_state[f"revision_mode_{stage_id}"] = "judge_only"
+                    revise_stage(job["job_id"], stage_id, stage_state.get("user_feedback", ""))
+                    st.rerun()
+
+            with rev_col_3:
+                if st.button(
+                    "🧠 Revise with both",
+                    key=f"revise_both_{stage_id}",
+                    disabled=not (has_judge or has_human),
+                    type="primary",
+                ):
+                    save_feedback(job["job_id"], stage_id, user_feedback)
+                    st.session_state[f"revision_mode_{stage_id}"] = "both"
+                    revise_stage(job["job_id"], stage_id, user_feedback)
+                    st.rerun()
+
+            st.caption(
+                "After revision, review the new output above. "
+                "You can judge it again, add more feedback, revise again, or approve."
+            )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # STEP 5 — APPROVE AND CONTINUE
+        # ----------------------------------------------------
+        st.markdown("## 5️⃣ Decision")
+
+        decision_col_1, decision_col_2 = st.columns([1.4, 2.6])
+
+        with decision_col_1:
+            if next_stage_id:
+                approve_label = "✅ Approve & go to next agent"
+            else:
+                approve_label = "✅ Approve final stage"
+
+            if st.button(
+                approve_label,
+                key=f"approve_and_continue_{stage_id}",
+                disabled=not bool(stage_state.get("agent_output")),
+                type="primary",
+            ):
+                approve_stage(job["job_id"], stage_id)
+
+                if next_stage_id:
+                    # Automatically prepare next stage so the user understands what comes next.
+                    st.session_state.selected_stage_id = next_stage_id
+                    st.success("Stage approved. Move to the next tab/agent.")
+                else:
+                    st.success("Final stage approved.")
+
+                st.rerun()
+
+        with decision_col_2:
+            if next_stage_id:
+                next_stage_config = get_stage_config(next_stage_id)
+                st.info(
+                    f"After approval, continue with: "
+                    f"**{next_stage_config['title']}** "
+                    f"({next_stage_config['agent']})."
+                )
+            else:
+                st.info("This is the final stage. After approval, the workflow is complete.")
