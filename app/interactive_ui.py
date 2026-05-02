@@ -17,7 +17,7 @@ uncluttered and focuses on the core workflow actions.
 
 import streamlit as st
 import requests
-
+from typing import Optional
 API_BASE = "http://127.0.0.1:8000"
 
 # Define the stages so the UI can iterate through them.  This must match the
