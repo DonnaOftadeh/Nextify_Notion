@@ -37,76 +37,16 @@ from .adk_agents import (
 
 
 STAGES = [
-    {
-        "id": "parse_submission",
-        "title": "Parse Submission",
-        "short_title": "Parse",
-        "agent": "Input Parser Agent",
-        "desc": "Turn the raw idea form into a clean product brief.",
-    },
-    {
-        "id": "brainstorm_parallel",
-        "title": "Brainstorm Parallel",
-        "short_title": "Brainstorm",
-        "agent": "MarketAnalysisAgent + CrazyIdeaAgent",
-        "desc": "Generate market-grounded and breakthrough ideas from the accepted parsed brief.",
-    },
-    {
-        "id": "idea_cooker",
-        "title": "Idea Cooker",
-        "short_title": "Cooker",
-        "agent": "IdeaCookerAgent",
-        "desc": "Score, explain, and recommend the best product direction.",
-    },
-    {
-        "id": "theme_epic_generator",
-        "title": "Theme & Epic Generator",
-        "short_title": "Themes",
-        "agent": "ThemeEpicAgent",
-        "desc": "Create themes and epics from the accepted idea direction.",
-    },
-    {
-        "id": "roadmap_generator",
-        "title": "Roadmap Generator",
-        "short_title": "Roadmap",
-        "agent": "RoadmapAgent",
-        "desc": "Create a phased roadmap.",
-    },
-    {
-        "id": "feature_generation",
-        "title": "Feature Generation",
-        "short_title": "Features",
-        "agent": "FeatureGenerationAgent",
-        "desc": "Generate MVP and future features.",
-    },
-    {
-        "id": "prioritization_rice",
-        "title": "Prioritization & RICE",
-        "short_title": "RICE",
-        "agent": "PrioritizationAgent",
-        "desc": "Prioritize features using RICE.",
-    },
-    {
-        "id": "okr_generation",
-        "title": "OKR Generation",
-        "short_title": "OKRs",
-        "agent": "OKRAgent",
-        "desc": "Generate measurable OKRs.",
-    },
-    {
-        "id": "three_month_planner",
-        "title": "Three-Month Planner",
-        "short_title": "Planner",
-        "agent": "PlannerAgent",
-        "desc": "Create the 3-month execution plan.",
-    },
-    {
-        "id": "write_report_pdf",
-        "title": "Write Report",
-        "short_title": "Report",
-        "agent": "ReportWriterAgent",
-        "desc": "Assemble the final product plan.",
-    },
+    {"id": "parse_submission", "title": "Parse Submission", "short_title": "Parse", "agent": "Input Parser Agent", "desc": "Turn the raw idea form into a clean product brief."},
+    {"id": "brainstorm_parallel", "title": "Brainstorm Parallel", "short_title": "Brainstorm", "agent": "MarketAnalysisAgent + CrazyIdeaAgent", "desc": "Generate market-grounded and breakthrough ideas from the accepted parsed brief."},
+    {"id": "idea_cooker", "title": "Idea Cooker", "short_title": "Cooker", "agent": "IdeaCookerAgent", "desc": "Score, explain, and recommend the best product direction."},
+    {"id": "theme_epic_generator", "title": "Theme & Epic Generator", "short_title": "Themes", "agent": "ThemeEpicAgent", "desc": "Create themes and epics from the accepted idea direction."},
+    {"id": "roadmap_generator", "title": "Roadmap Generator", "short_title": "Roadmap", "agent": "RoadmapAgent", "desc": "Create a phased roadmap."},
+    {"id": "feature_generation", "title": "Feature Generation", "short_title": "Features", "agent": "FeatureGenerationAgent", "desc": "Generate MVP and future features."},
+    {"id": "prioritization_rice", "title": "Prioritization & RICE", "short_title": "RICE", "agent": "PrioritizationAgent", "desc": "Prioritize features using RICE."},
+    {"id": "okr_generation", "title": "OKR Generation", "short_title": "OKRs", "agent": "OKRAgent", "desc": "Generate measurable OKRs."},
+    {"id": "three_month_planner", "title": "Three-Month Planner", "short_title": "Planner", "agent": "PlannerAgent", "desc": "Create the 3-month execution plan."},
+    {"id": "write_report_pdf", "title": "Write Report", "short_title": "Report", "agent": "ReportWriterAgent", "desc": "Assemble the final product plan."},
 ]
 
 STAGE_IDS = [stage["id"] for stage in STAGES]
@@ -220,7 +160,7 @@ def feedback_summary(mode: str, human_feedback: str, judge_feedback: str) -> str
 
 
 @app.get("/")
-async def root() -> Dict[str, str]:
+async def root() -> Dict[str, Any]:
     return {
         "service": "Nextify Interactive ADK Backend",
         "status": "ok",

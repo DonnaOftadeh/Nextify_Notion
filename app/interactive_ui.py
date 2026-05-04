@@ -18,7 +18,6 @@ import streamlit as st
 
 API_BASE = "http://127.0.0.1:8000"
 
-
 STAGES = [
     {"id": "parse_submission", "title": "Parse Submission", "short_title": "Parse", "agent": "Input Parser Agent", "desc": "Turn the raw idea form into a clean product brief."},
     {"id": "brainstorm_parallel", "title": "Brainstorm Parallel", "short_title": "Brainstorm", "agent": "MarketAnalysisAgent + CrazyIdeaAgent", "desc": "Generate market-grounded and breakthrough ideas from the accepted parsed brief."},

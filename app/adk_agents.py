@@ -38,7 +38,6 @@ MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 EVAL_MODEL = os.getenv("GEMINI_EVAL_MODEL", "gemini-2.5-flash-lite")
 APP_NAME = "nextify_interactive_adk_app"
 
-
 INTERACTIVE_STAGE_IDS = [
     "parse_submission",
     "brainstorm_parallel",
@@ -101,7 +100,6 @@ List key risks.
 Summarize what the Brainstorming Agent should use as source of truth.
 """
 
-
 MARKET_ANALYSIS_PROMPT = """
 You are the MarketAnalysisAgent for Nextify.
 
@@ -134,7 +132,6 @@ Output:
 ## 🎯 Strategic Insights & Positioning
 """
 
-
 CRAZY_IDEA_PROMPT = """
 You are the CrazyIdeaAgent for Nextify.
 
@@ -164,7 +161,6 @@ For each concept:
 - Why it might win
 - Risks / downsides
 """
-
 
 IDEA_COOKER_PROMPT = """
 You are the IdeaCookerAgent for Nextify.
@@ -212,7 +208,6 @@ Output:
 Tell the user what to approve or how to give feedback.
 """
 
-
 THEME_EPIC_PROMPT = """
 You are the ThemeEpicAgent for Nextify.
 
@@ -242,7 +237,6 @@ For each epic:
 - Why this belongs in roadmap planning
 """
 
-
 ROADMAP_PROMPT = """
 You are the RoadmapAgent for Nextify.
 
@@ -267,7 +261,6 @@ Output:
 ## 🔗 Roadmap Logic
 """
 
-
 FEATURE_PROMPT = """
 You are the FeatureGenerationAgent for Nextify.
 
@@ -289,7 +282,6 @@ Output:
 [FEATURE_DETAILS]
 ## 🔍 Feature Details
 """
-
 
 PRIORITIZATION_PROMPT = """
 You are the PrioritizationAgent for Nextify.
@@ -316,7 +308,6 @@ Output:
 ## 🗺️ Feature Roadmap
 """
 
-
 OKR_PROMPT = """
 You are the OKRAgent for Nextify.
 
@@ -340,7 +331,6 @@ Output:
 [METRICS_AND_INSTRUMENTATION]
 """
 
-
 PLANNER_PROMPT = """
 You are the Three-Month Planner Agent for Nextify.
 
@@ -363,7 +353,6 @@ Output:
 
 [RISKS_AND_DEPENDENCIES]
 """
-
 
 REPORT_PROMPT = """
 You are the Report Writer Agent for Nextify.
@@ -399,7 +388,6 @@ Output:
 
 ## Next Steps
 """
-
 
 EVALUATOR_PROMPT = """
 You are the Evaluation & Quality Agent for Nextify.
@@ -446,7 +434,6 @@ Output exactly:
 [REWRITTEN_VERSION]
 - A revised version of the stage content
 """
-
 
 REVIEWER_PROMPT = """
 You are the Nextify Reviewer/Rewriter Agent.
@@ -498,7 +485,6 @@ Special rule for idea_cooker:
 Return markdown only.
 """
 
-
 STAGE_PROMPTS = {
     "parse_submission": INPUT_PARSER_PROMPT,
     "brainstorm_parallel": MARKET_ANALYSIS_PROMPT + "\n\n---\n\n" + CRAZY_IDEA_PROMPT,
@@ -519,83 +505,19 @@ STAGE_PROMPTS = {
 # AGENTS
 # ============================================================
 
-input_parser_agent = LlmAgent(
-    name="InputParserAgent",
-    model=MODEL_NAME,
-    instruction=INPUT_PARSER_PROMPT,
-)
-
-market_agent = LlmAgent(
-    name="MarketAnalysisAgent",
-    model=MODEL_NAME,
-    instruction=MARKET_ANALYSIS_PROMPT,
-)
-
-crazy_agent = LlmAgent(
-    name="CrazyIdeaAgent",
-    model=MODEL_NAME,
-    instruction=CRAZY_IDEA_PROMPT,
-)
-
-idea_cooker_agent = LlmAgent(
-    name="IdeaCookerAgent",
-    model=MODEL_NAME,
-    instruction=IDEA_COOKER_PROMPT,
-)
-
-theme_epic_agent = LlmAgent(
-    name="ThemeEpicAgent",
-    model=MODEL_NAME,
-    instruction=THEME_EPIC_PROMPT,
-)
-
-roadmap_agent = LlmAgent(
-    name="RoadmapAgent",
-    model=MODEL_NAME,
-    instruction=ROADMAP_PROMPT,
-)
-
-feature_agent = LlmAgent(
-    name="FeatureGenerationAgent",
-    model=MODEL_NAME,
-    instruction=FEATURE_PROMPT,
-)
-
-prioritization_agent = LlmAgent(
-    name="PrioritizationAgent",
-    model=MODEL_NAME,
-    instruction=PRIORITIZATION_PROMPT,
-)
-
-okr_agent = LlmAgent(
-    name="OKRAgent",
-    model=MODEL_NAME,
-    instruction=OKR_PROMPT,
-)
-
-planner_agent = LlmAgent(
-    name="PlannerAgent",
-    model=MODEL_NAME,
-    instruction=PLANNER_PROMPT,
-)
-
-report_writer_agent = LlmAgent(
-    name="ReportWriterAgent",
-    model=MODEL_NAME,
-    instruction=REPORT_PROMPT,
-)
-
-evaluation_agent = LlmAgent(
-    name="EvaluatorAgent",
-    model=EVAL_MODEL,
-    instruction=EVALUATOR_PROMPT,
-)
-
-reviewer_agent = LlmAgent(
-    name="ReviewerAgent",
-    model=EVAL_MODEL,
-    instruction=REVIEWER_PROMPT,
-)
+input_parser_agent = LlmAgent(name="InputParserAgent", model=MODEL_NAME, instruction=INPUT_PARSER_PROMPT)
+market_agent = LlmAgent(name="MarketAnalysisAgent", model=MODEL_NAME, instruction=MARKET_ANALYSIS_PROMPT)
+crazy_agent = LlmAgent(name="CrazyIdeaAgent", model=MODEL_NAME, instruction=CRAZY_IDEA_PROMPT)
+idea_cooker_agent = LlmAgent(name="IdeaCookerAgent", model=MODEL_NAME, instruction=IDEA_COOKER_PROMPT)
+theme_epic_agent = LlmAgent(name="ThemeEpicAgent", model=MODEL_NAME, instruction=THEME_EPIC_PROMPT)
+roadmap_agent = LlmAgent(name="RoadmapAgent", model=MODEL_NAME, instruction=ROADMAP_PROMPT)
+feature_agent = LlmAgent(name="FeatureGenerationAgent", model=MODEL_NAME, instruction=FEATURE_PROMPT)
+prioritization_agent = LlmAgent(name="PrioritizationAgent", model=MODEL_NAME, instruction=PRIORITIZATION_PROMPT)
+okr_agent = LlmAgent(name="OKRAgent", model=MODEL_NAME, instruction=OKR_PROMPT)
+planner_agent = LlmAgent(name="PlannerAgent", model=MODEL_NAME, instruction=PLANNER_PROMPT)
+report_writer_agent = LlmAgent(name="ReportWriterAgent", model=MODEL_NAME, instruction=REPORT_PROMPT)
+evaluation_agent = LlmAgent(name="EvaluatorAgent", model=EVAL_MODEL, instruction=EVALUATOR_PROMPT)
+reviewer_agent = LlmAgent(name="ReviewerAgent", model=EVAL_MODEL, instruction=REVIEWER_PROMPT)
 
 
 # ============================================================
@@ -697,28 +619,16 @@ def _build_interactive_stage_input(
     ]
 
     if current_output:
-        parts.extend([
-            "## CURRENT_STAGE_OUTPUT",
-            current_output,
-        ])
+        parts.extend(["## CURRENT_STAGE_OUTPUT", current_output])
 
     if human_feedback:
-        parts.extend([
-            "## HUMAN_FEEDBACK",
-            human_feedback,
-        ])
+        parts.extend(["## HUMAN_FEEDBACK", human_feedback])
 
     if judge_feedback:
-        parts.extend([
-            "## LLM_JUDGE_FEEDBACK",
-            judge_feedback,
-        ])
+        parts.extend(["## LLM_JUDGE_FEEDBACK", judge_feedback])
 
     if feedback_mode:
-        parts.extend([
-            "## FEEDBACK_MODE",
-            feedback_mode,
-        ])
+        parts.extend(["## FEEDBACK_MODE", feedback_mode])
 
     return "\n\n".join(parts)
 
@@ -823,28 +733,20 @@ async def run_interactive_stage_adk(
 
     elif stage_id == "idea_cooker":
         agent = idea_cooker_agent
-
     elif stage_id == "theme_epic_generator":
         agent = theme_epic_agent
-
     elif stage_id == "roadmap_generator":
         agent = roadmap_agent
-
     elif stage_id == "feature_generation":
         agent = feature_agent
-
     elif stage_id == "prioritization_rice":
         agent = prioritization_agent
-
     elif stage_id == "okr_generation":
         agent = okr_agent
-
     elif stage_id == "three_month_planner":
         agent = planner_agent
-
     elif stage_id == "write_report_pdf":
         agent = report_writer_agent
-
     else:
         raise ValueError(f"Unknown stage_id: {stage_id}")
 
