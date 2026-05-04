@@ -14,6 +14,10 @@ Every stage supports:
 - run stage
 - judge stage
 - revise stage
+
+Important stability fix:
+- Every ADK call retries temporary Gemini errors like 503 high demand and 429 quota.
+- Brainstorm Parallel runs MarketAnalysisAgent and CrazyIdeaAgent sequentially for now.
 """
 
 from __future__ import annotations
@@ -633,6 +637,19 @@ def _build_interactive_stage_input(
     return "\n\n".join(parts)
 
 
+def _is_temporary_model_error(error_text: str) -> bool:
+    lower = (error_text or "").lower()
+    return (
+        "503" in error_text
+        or "unavailable" in lower
+        or "high demand" in lower
+        or "429" in error_text
+        or "resource_exhausted" in lower
+        or "quota" in lower
+        or "rate limit" in lower
+    )
+
+
 async def _run_agent_once(
     *,
     agent: LlmAgent,
@@ -641,37 +658,61 @@ async def _run_agent_once(
     session_id: str,
     session_service: InMemorySessionService,
 ) -> str:
-    await session_service.create_session(
-        app_name=APP_NAME,
-        user_id=user_id,
-        session_id=session_id,
+    max_attempts = 3
+    last_error = None
+
+    for attempt in range(1, max_attempts + 1):
+        attempt_session_id = f"{session_id}_{attempt}"
+
+        try:
+            await session_service.create_session(
+                app_name=APP_NAME,
+                user_id=user_id,
+                session_id=attempt_session_id,
+            )
+
+            runner = Runner(
+                agent=agent,
+                app_name=APP_NAME,
+                session_service=session_service,
+            )
+
+            user_message = types.Content(
+                role="user",
+                parts=[types.Part(text=input_text)],
+            )
+
+            final_text = ""
+
+            async for event in runner.run_async(
+                user_id=user_id,
+                session_id=attempt_session_id,
+                new_message=user_message,
+            ):
+                if event.content and event.content.parts:
+                    for part in event.content.parts:
+                        part_text = getattr(part, "text", None)
+                        if part_text:
+                            final_text += part_text
+
+            if final_text.strip():
+                return final_text.strip()
+
+            last_error = "Agent returned empty output."
+
+        except Exception as exc:
+            last_error = str(exc)
+
+            if not _is_temporary_model_error(last_error):
+                raise
+
+            if attempt < max_attempts:
+                await asyncio.sleep(3 * attempt)
+                continue
+
+    raise RuntimeError(
+        f"Gemini/ADK call failed after {max_attempts} attempts. Last error: {last_error}"
     )
-
-    runner = Runner(
-        agent=agent,
-        app_name=APP_NAME,
-        session_service=session_service,
-    )
-
-    user_message = types.Content(
-        role="user",
-        parts=[types.Part(text=input_text)],
-    )
-
-    final_text = ""
-
-    async for event in runner.run_async(
-        user_id=user_id,
-        session_id=session_id,
-        new_message=user_message,
-    ):
-        if event.content and event.content.parts:
-            for part in event.content.parts:
-                part_text = getattr(part, "text", None)
-                if part_text:
-                    final_text += part_text
-
-    return final_text.strip()
 
 
 # ============================================================
@@ -687,13 +728,12 @@ async def run_interactive_stage_adk(
     session_service = InMemorySessionService()
     user_id = "nextify_interactive_user"
 
-    input_text = _build_interactive_stage_input(
-        job=job,
-        stage_id=stage_id,
-        stage_title=stage_title,
-    )
-
     if stage_id == "parse_submission":
+        input_text = _build_interactive_stage_input(
+            job=job,
+            stage_id=stage_id,
+            stage_title=stage_title,
+        )
         agent = input_parser_agent
 
     elif stage_id == "brainstorm_parallel":
@@ -709,7 +749,7 @@ async def run_interactive_stage_adk(
             stage_title="Crazy Ideas",
         )
 
-        market_task = _run_agent_once(
+        market_md = await _run_agent_once(
             agent=market_agent,
             input_text=market_input,
             user_id=user_id,
@@ -717,7 +757,9 @@ async def run_interactive_stage_adk(
             session_service=session_service,
         )
 
-        crazy_task = _run_agent_once(
+        await asyncio.sleep(2)
+
+        crazy_md = await _run_agent_once(
             agent=crazy_agent,
             input_text=crazy_input,
             user_id=user_id,
@@ -725,30 +767,35 @@ async def run_interactive_stage_adk(
             session_service=session_service,
         )
 
-        market_md, crazy_md = await asyncio.gather(market_task, crazy_task)
-
         return "\n\n---\n\n".join(
             block for block in [market_md, crazy_md] if block
         ).strip()
 
-    elif stage_id == "idea_cooker":
-        agent = idea_cooker_agent
-    elif stage_id == "theme_epic_generator":
-        agent = theme_epic_agent
-    elif stage_id == "roadmap_generator":
-        agent = roadmap_agent
-    elif stage_id == "feature_generation":
-        agent = feature_agent
-    elif stage_id == "prioritization_rice":
-        agent = prioritization_agent
-    elif stage_id == "okr_generation":
-        agent = okr_agent
-    elif stage_id == "three_month_planner":
-        agent = planner_agent
-    elif stage_id == "write_report_pdf":
-        agent = report_writer_agent
     else:
-        raise ValueError(f"Unknown stage_id: {stage_id}")
+        input_text = _build_interactive_stage_input(
+            job=job,
+            stage_id=stage_id,
+            stage_title=stage_title,
+        )
+
+        if stage_id == "idea_cooker":
+            agent = idea_cooker_agent
+        elif stage_id == "theme_epic_generator":
+            agent = theme_epic_agent
+        elif stage_id == "roadmap_generator":
+            agent = roadmap_agent
+        elif stage_id == "feature_generation":
+            agent = feature_agent
+        elif stage_id == "prioritization_rice":
+            agent = prioritization_agent
+        elif stage_id == "okr_generation":
+            agent = okr_agent
+        elif stage_id == "three_month_planner":
+            agent = planner_agent
+        elif stage_id == "write_report_pdf":
+            agent = report_writer_agent
+        else:
+            raise ValueError(f"Unknown stage_id: {stage_id}")
 
     return await _run_agent_once(
         agent=agent,
