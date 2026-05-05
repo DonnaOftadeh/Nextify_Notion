@@ -1,23 +1,12 @@
 """
 Nextify ADK Interactive Agents
 
-This file powers the interactive Human-in-the-Loop workflow:
+This file powers the interactive Human-in-the-Loop workflow.
 
-Raw idea form
-→ Input Parser Agent
-→ LLM Judge
-→ Reviewer Agent applies human / judge / both feedback
-→ user accepts output
-→ accepted output becomes input to next agent
-
-Every stage supports:
-- run stage
-- judge stage
-- revise stage
-
-Important stability fix:
-- Every ADK call retries temporary Gemini errors like 503 high demand and 429 quota.
-- Brainstorm Parallel runs MarketAnalysisAgent and CrazyIdeaAgent sequentially for now.
+Stability behavior:
+- Tries Gemini/ADK first.
+- Retries temporary Gemini errors such as 503 high demand and 429 quota.
+- If Gemini still fails, returns a useful local fallback output instead of breaking the UI.
 """
 
 from __future__ import annotations
@@ -33,10 +22,6 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-
-# ============================================================
-# CONFIG
-# ============================================================
 
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 EVAL_MODEL = os.getenv("GEMINI_EVAL_MODEL", "gemini-2.5-flash-lite")
@@ -55,10 +40,6 @@ INTERACTIVE_STAGE_IDS = [
     "write_report_pdf",
 ]
 
-
-# ============================================================
-# PROMPTS
-# ============================================================
 
 INPUT_PARSER_PROMPT = """
 You are the Input Parser Agent for Nextify.
@@ -107,11 +88,6 @@ Summarize what the Brainstorming Agent should use as source of truth.
 MARKET_ANALYSIS_PROMPT = """
 You are the MarketAnalysisAgent for Nextify.
 
-You receive:
-- the founder idea form
-- the previous accepted stage output
-- all accepted context so far
-
 Your job:
 1. Identify the relevant market.
 2. Estimate TAM / SAM / SOM with plausible ranges.
@@ -120,29 +96,10 @@ Your job:
 5. Stay faithful to the founder idea and prior accepted output.
 
 Return markdown only.
-
-Output:
-
-[MARKET_DATA]
-## 🌍 Market Overview
-
-## 📊 TAM / SAM / SOM
-
-## 🏁 Competitor Landscape
-
-| Name | Type | What they offer | Strengths | Weaknesses / Gaps |
-|---|---|---|---|---|
-
-## 🎯 Strategic Insights & Positioning
 """
 
 CRAZY_IDEA_PROMPT = """
 You are the CrazyIdeaAgent for Nextify.
-
-You receive:
-- the founder idea form
-- the previous accepted stage output
-- all accepted context so far
 
 Your job:
 Generate 3–5 bold but MVP-buildable product concepts.
@@ -153,27 +110,10 @@ Rules:
 - Respect constraints.
 - Make the concepts distinct.
 - Return markdown only.
-
-Output:
-
-[CRAZY_IDEAS]
-## 🎨 Concept Space
-
-For each concept:
-- Name
-- Summary
-- Why it might win
-- Risks / downsides
 """
 
 IDEA_COOKER_PROMPT = """
 You are the IdeaCookerAgent for Nextify.
-
-You receive:
-- MarketAnalysisAgent output
-- CrazyIdeaAgent output
-- founder idea form
-- previous accepted context
 
 Your job:
 1. Evaluate the strongest concepts.
@@ -181,239 +121,76 @@ Your job:
 3. Recommend one winning concept.
 4. Ask the user to approve or give feedback.
 
-Rules:
-- Preserve the user's original product direction.
-- Do not invent unrelated concepts.
-- If the user has selected or preferred a concept in feedback, respect it.
-- Return markdown only.
-
-Output:
-
-[TRADEOFF_TABLE]
-## ⚖️ Tradeoff Analysis
-
-| Concept Name | Differentiation | Market Demand | Feasibility | Strategic Fit | Monetization | Total Score |
-|---|---:|---:|---:|---:|---:|---:|
-
-[TRADEOFF_SUMMARY]
-## 🧠 Tradeoff Summary
-
-[PRODUCT_SNAPSHOT_MD]
-## 🧾 Product Snapshot
-- Problem
-- Target users
-- Concept summary
-- Core value proposition
-- MVP scope
-- Risks and mitigations
-- Example use cases
-
-## User Decision Needed
-Tell the user what to approve or how to give feedback.
+Return markdown only.
 """
 
 THEME_EPIC_PROMPT = """
 You are the ThemeEpicAgent for Nextify.
 
-You receive the accepted product snapshot or accepted prior stage output.
-
 Your job:
-Create 3–5 strategic themes and epics.
+Create 3–5 strategic themes and epics from the accepted product direction.
 
 Return markdown only.
-
-Output:
-
-[THEME_EPIC_MD]
-## 🎯 Strategic Themes
-
-For each theme:
-- Theme name
-- Why it matters
-- User / business value
-
-## 🧩 Epics
-
-For each epic:
-- Epic name
-- Mapped theme
-- What this epic covers
-- Why this belongs in roadmap planning
 """
 
 ROADMAP_PROMPT = """
 You are the RoadmapAgent for Nextify.
 
-You receive accepted themes and epics.
-
 Your job:
 Create a realistic roadmap for an early-stage MVP.
 
 Return markdown only.
-
-Output:
-
-[ROADMAP_GENERATOR_MD]
-## 🗺️ Strategic Roadmap
-
-### Phase 1 – Foundation / MVP
-
-### Phase 2 – Validation / Expansion
-
-### Phase 3 – Optimization / Scale
-
-## 🔗 Roadmap Logic
 """
 
 FEATURE_PROMPT = """
 You are the FeatureGenerationAgent for Nextify.
 
-You receive the accepted roadmap and product direction.
-
 Your job:
 Generate a clean feature list for MVP and near-term roadmap.
 
 Return markdown only.
-
-Output:
-
-[FEATURE_LIST]
-## 🧱 Feature List
-
-| id | feature_name | what_it_does | why_it_matters | impact | effort | tags |
-|---|---|---|---|---|---|---|
-
-[FEATURE_DETAILS]
-## 🔍 Feature Details
 """
 
 PRIORITIZATION_PROMPT = """
 You are the PrioritizationAgent for Nextify.
 
-You receive the accepted feature list.
-
 Your job:
 Apply RICE prioritization and create a short feature roadmap.
 
 Return markdown only.
-
-Output:
-
-[RICE_TABLE]
-## 📊 RICE Prioritization Table
-
-| id | feature_name | reach | impact | confidence | effort | rice_score | priority_rank |
-|---|---|---:|---:|---:|---:|---:|---:|
-
-[RICE_SUMMARY]
-## 🧠 RICE Summary
-
-[ROADMAP_MD]
-## 🗺️ Feature Roadmap
 """
 
 OKR_PROMPT = """
 You are the OKRAgent for Nextify.
 
-You receive the accepted product direction, roadmap, features, and priorities.
-
 Your job:
 Generate a small, realistic quarterly OKR set.
 
 Return markdown only.
-
-Output:
-
-[OKR_SUMMARY]
-
-[OBJECTIVES]
-
-[KEY_RESULTS]
-
-[MILESTONES_AND_CHECKPOINTS]
-
-[METRICS_AND_INSTRUMENTATION]
 """
 
 PLANNER_PROMPT = """
 You are the Three-Month Planner Agent for Nextify.
 
-You receive the accepted OKRs and upstream context.
-
 Your job:
 Create a practical 3-month execution plan.
 
 Return markdown only.
-
-Output:
-
-[THREE_MONTH_OVERVIEW]
-
-[MONTHLY_BREAKDOWN]
-
-[WEEKLY_PLAN]
-
-[EXPERIMENTS_AND_LEARNING]
-
-[RISKS_AND_DEPENDENCIES]
 """
 
 REPORT_PROMPT = """
 You are the Report Writer Agent for Nextify.
 
-You receive all accepted stage outputs.
-
 Your job:
-Assemble them into a clean final product plan.
+Assemble all accepted stage outputs into a clean final product plan.
 
 Return markdown only.
-
-Output:
-
-# Final Product Plan
-
-## Product Concept
-
-## Target Users
-
-## Problem
-
-## Recommended Direction
-
-## MVP Scope
-
-## Roadmap
-
-## Prioritized Features
-
-## OKRs
-
-## Three-Month Execution Plan
-
-## Next Steps
 """
 
 EVALUATOR_PROMPT = """
 You are the Evaluation & Quality Agent for Nextify.
 
 You evaluate exactly one selected stage output.
-
-You receive:
-- STAGE_NAME
-- STAGE_KEY
-- STAGE_CONTENT
-- ORIGINAL_PROMPT
-- FOUNDER_IDEA_FORM
-- PREVIOUS_ACCEPTED_OUTPUT
-- ALL_ACCEPTED_CONTEXT
-
-Assess:
-1. Prompt adherence
-2. Clarity
-3. Coherence
-4. Feasibility
-5. Alignment with the founder idea
-6. Alignment with prior accepted context
 
 Return markdown only.
 
@@ -442,51 +219,17 @@ Output exactly:
 REVIEWER_PROMPT = """
 You are the Nextify Reviewer/Rewriter Agent.
 
-You revise exactly one selected stage output.
-
-You receive:
-- STAGE_NAME
-- STAGE_KEY
-- CURRENT_STAGE_OUTPUT
-- PREVIOUS_ACCEPTED_OUTPUT
-- ALL_ACCEPTED_CONTEXT
-- FOUNDER_IDEA_FORM_MARKDOWN
-- FOUNDER_IDEA_FORM_JSON
-- HUMAN_FEEDBACK
-- LLM_JUDGE_FEEDBACK
-- FEEDBACK_MODE
-
-Your job:
-Revise CURRENT_STAGE_OUTPUT using the selected feedback sources.
+You revise exactly one selected stage output using:
+- human feedback
+- LLM judge feedback
+- or both
 
 Rules:
 - Preserve the user's original product idea.
 - Do not invent an unrelated product.
-- Do not include raw judge feedback verbatim unless necessary.
-- Do not include raw human feedback verbatim unless necessary.
 - Return only the improved stage artifact.
-- Keep the same role and purpose of the selected stage.
-- Make the output clear, specific, practical, and decision-ready.
-- The revised output must be suitable to send to the next agent.
-
-Special rule for parse_submission:
-Return:
-# Parsed Product Brief — Revised Version
-## Clean Product Concept
-## Target Users
-## Problem Statement
-## Constraints
-## Product Type
-## MVP Boundary
-## Key Assumptions
-## Key Risks
-## Next Agent Input
-
-Special rule for idea_cooker:
-- Preserve scored concept comparison.
-- If human feedback chooses or combines ideas, reflect that in the recommendation.
-
-Return markdown only.
+- Make the output clearer, more specific, and more decision-ready.
+- Return markdown only.
 """
 
 STAGE_PROMPTS = {
@@ -505,10 +248,6 @@ STAGE_PROMPTS = {
 }
 
 
-# ============================================================
-# AGENTS
-# ============================================================
-
 input_parser_agent = LlmAgent(name="InputParserAgent", model=MODEL_NAME, instruction=INPUT_PARSER_PROMPT)
 market_agent = LlmAgent(name="MarketAnalysisAgent", model=MODEL_NAME, instruction=MARKET_ANALYSIS_PROMPT)
 crazy_agent = LlmAgent(name="CrazyIdeaAgent", model=MODEL_NAME, instruction=CRAZY_IDEA_PROMPT)
@@ -523,10 +262,6 @@ report_writer_agent = LlmAgent(name="ReportWriterAgent", model=MODEL_NAME, instr
 evaluation_agent = LlmAgent(name="EvaluatorAgent", model=EVAL_MODEL, instruction=EVALUATOR_PROMPT)
 reviewer_agent = LlmAgent(name="ReviewerAgent", model=EVAL_MODEL, instruction=REVIEWER_PROMPT)
 
-
-# ============================================================
-# HELPERS
-# ============================================================
 
 def _json_pretty(data: Dict[str, Any]) -> str:
     try:
@@ -650,6 +385,193 @@ def _is_temporary_model_error(error_text: str) -> bool:
     )
 
 
+def _local_fallback_output(
+    *,
+    stage_id: str,
+    stage_title: str,
+    job: Dict[str, Any],
+    current_output: str = "",
+    human_feedback: str = "",
+    judge_feedback: str = "",
+    feedback_mode: str = "",
+    error_text: str = "",
+) -> str:
+    payload = job.get("payload", {}) or {}
+    idea_title = payload.get("idea_title", "Untitled idea")
+    idea_text = payload.get("idea_text", "")
+    target_users = payload.get("target_users", "")
+    problem = payload.get("problem", "")
+    constraints = payload.get("constraints", "")
+    previous_accepted = _latest_accepted_output(job, stage_id)
+    all_context = _all_accepted_context(job)
+
+    if stage_id == "parse_submission":
+        return f"""
+# Parsed Product Brief — Local Fallback Version
+
+## Clean Product Concept
+{idea_title}
+
+{idea_text}
+
+## Target Users
+{target_users or "Not specified yet."}
+
+## Problem Statement
+{problem or "Not specified yet."}
+
+## Constraints
+{constraints or "Not specified yet."}
+
+## Product Type
+AI-powered product management and product strategy assistant.
+
+## MVP Boundary
+Focus the MVP on one strong workflow: turning messy product inputs into one structured, decision-ready output.
+
+## Key Assumptions
+- Target users have scattered product information across notes, meetings, customer feedback, and planning tools.
+- A focused assistant can create value before becoming a full product operating system.
+- The first version should prioritize clarity, speed, and integration with existing workflows.
+
+## Key Risks
+- The MVP may become too broad if too many workflows are included.
+- Users may not trust generated outputs without transparent review and editing.
+- Integrations can slow down delivery if they are added too early.
+
+## Next Agent Input
+Use this idea as the source of truth: build a focused AI workspace for product managers that transforms messy inputs into structured product artifacts and supports human feedback loops.
+
+## System Note
+Gemini was temporarily unavailable, so this fallback output was generated locally. Last model error: {error_text}
+""".strip()
+
+    if stage_id == "brainstorm_parallel":
+        return f"""
+[MARKET_DATA]
+## 🌍 Market Overview
+This product sits in the market for AI-powered product management, product operations, and product strategy tools.
+
+## 📊 TAM / SAM / SOM
+- **TAM:** Large global market across product management, collaboration, and AI productivity tools.
+- **SAM:** Product teams, startup founders, innovation teams, and product owners using tools such as Notion, Jira, Slack, docs, and spreadsheets.
+- **SOM:** A realistic first wedge is solo PMs, founders, and small product teams who need faster product documentation and prioritization.
+
+## 🏁 Competitor Landscape
+| Name | Type | What they offer | Strengths | Weaknesses / Gaps |
+|---|---|---|---|---|
+| Notion AI | Indirect | AI inside workspace docs | Strong workspace adoption | Not product-management-specific |
+| ChatGPT | Indirect | General AI assistant | Flexible and powerful | Lacks persistent PM workflow structure |
+| Jira Product Discovery | Direct/Adjacent | Product discovery and prioritization | Strong Atlassian ecosystem | Less generative and less conversational |
+| Productboard | Direct/Adjacent | Feedback and roadmap management | Strong PM workflows | Can be heavy for small teams |
+
+## 🎯 Strategic Insights & Positioning
+- Position as “Cursor for Product Managers.”
+- Start with one workflow: idea → brainstorm → prioritize → roadmap → feedback loop.
+- Avoid replacing existing tools at first; integrate with them.
+- Use human and LLM review as a trust-building differentiator.
+
+---
+
+[CRAZY_IDEAS]
+## 🎨 Concept Space
+
+### Concept 1: Cursor for PMs
+- **Summary:** An AI workspace that helps product managers create product artifacts from messy inputs.
+- **Why it might win:** Clear analogy, strong positioning, broad PM pain.
+- **Risks:** Could become too broad.
+
+### Concept 2: Product Decision Copilot
+- **Summary:** A tool that explains and justifies roadmap and prioritization decisions.
+- **Why it might win:** Strong value for teams that need alignment.
+- **Risks:** Needs trusted context and good evaluation.
+
+### Concept 3: Notion-native PM Agent
+- **Summary:** A Notion-connected assistant that generates PRDs, priorities, and roadmaps inside existing workspaces.
+- **Why it might win:** Low migration friction.
+- **Risks:** Depends on integration quality.
+
+## System Note
+Gemini was temporarily unavailable, so this fallback output was generated locally. Last model error: {error_text}
+""".strip()
+
+    if stage_id == "idea_cooker":
+        return f"""
+[TRADEOFF_TABLE]
+## ⚖️ Tradeoff Analysis
+
+| Concept Name | Differentiation | Market Demand | Feasibility | Strategic Fit | Monetization | Total Score |
+|---|---:|---:|---:|---:|---:|---:|
+| Cursor for PMs | 9 | 8 | 7 | 10 | 8 | 42 |
+| Product Decision Copilot | 8 | 8 | 8 | 8 | 8 | 40 |
+| Notion-native PM Agent | 7 | 7 | 9 | 8 | 7 | 38 |
+
+[TRADEOFF_SUMMARY]
+## 🧠 Tradeoff Summary
+The strongest concept is **Cursor for PMs** because it is memorable, directly aligned with the founder vision, and broad enough to grow into a larger platform.
+
+[PRODUCT_SNAPSHOT_MD]
+## 🧾 Product Snapshot
+- **Problem:** PMs lose time turning scattered information into clear product decisions and artifacts.
+- **Target users:** Product managers, founders, product owners, innovation teams, UX researchers.
+- **Concept summary:** An AI workspace that helps PMs turn messy inputs into structured product outputs.
+- **Core value proposition:** Faster product clarity with human feedback and LLM review.
+- **MVP scope:** Start with idea parsing, brainstorming, prioritization, roadmap, and feedback loop.
+- **Risks and mitigations:** Keep scope narrow; integrate with existing tools; make outputs editable and reviewable.
+- **Example use cases:** PRD drafting, roadmap option generation, feature prioritization, OKR creation.
+
+## User Decision Needed
+Approve this direction or give feedback on which concept should be selected.
+
+## System Note
+Gemini was temporarily unavailable, so this fallback output was generated locally. Last model error: {error_text}
+""".strip()
+
+    if feedback_mode:
+        return f"""
+# Revised {stage_title} — Local Fallback Version
+
+## Change Summary
+The system attempted to revise this stage using **{feedback_mode}**, but Gemini was temporarily unavailable. This local fallback applies the available feedback at a structural level.
+
+## Applied Human Feedback
+{human_feedback or "No human feedback was provided for this revision."}
+
+## Applied LLM Judge Feedback
+{judge_feedback or "No LLM judge feedback was available or selected for this revision."}
+
+## Revised Output
+{current_output or previous_accepted or all_context}
+
+## Practical Improvement Added
+- Keep the product direction focused.
+- Make the output clearer and easier to approve.
+- Preserve the accepted context from previous stages.
+- Prepare the content for the next agent.
+
+## System Note
+Gemini was temporarily unavailable, so this fallback revision was generated locally. Last model error: {error_text}
+""".strip()
+
+    return f"""
+# {stage_title} — Local Fallback Version
+
+## Source Context
+{previous_accepted or all_context}
+
+## Draft Output
+This stage should build on the accepted previous output and create the next product planning artifact.
+
+## Recommended Direction
+- Keep the product focused on the approved concept.
+- Preserve the target users, problem, constraints, and MVP boundary.
+- Make the next output concrete enough for approval and downstream planning.
+
+## System Note
+Gemini was temporarily unavailable, so this fallback output was generated locally. Last model error: {error_text}
+""".strip()
+
+
 async def _run_agent_once(
     *,
     agent: LlmAgent,
@@ -715,10 +637,6 @@ async def _run_agent_once(
     )
 
 
-# ============================================================
-# PUBLIC FUNCTIONS USED BY FASTAPI
-# ============================================================
-
 async def run_interactive_stage_adk(
     *,
     job: Dict[str, Any],
@@ -728,50 +646,58 @@ async def run_interactive_stage_adk(
     session_service = InMemorySessionService()
     user_id = "nextify_interactive_user"
 
-    if stage_id == "parse_submission":
-        input_text = _build_interactive_stage_input(
-            job=job,
-            stage_id=stage_id,
-            stage_title=stage_title,
-        )
-        agent = input_parser_agent
+    try:
+        if stage_id == "parse_submission":
+            input_text = _build_interactive_stage_input(
+                job=job,
+                stage_id=stage_id,
+                stage_title=stage_title,
+            )
+            agent = input_parser_agent
 
-    elif stage_id == "brainstorm_parallel":
-        market_input = _build_interactive_stage_input(
-            job=job,
-            stage_id=stage_id,
-            stage_title="Market Analysis",
-        )
+            return await _run_agent_once(
+                agent=agent,
+                input_text=input_text,
+                user_id=user_id,
+                session_id=f"interactive_{stage_id}_{uuid.uuid4().hex}",
+                session_service=session_service,
+            )
 
-        crazy_input = _build_interactive_stage_input(
-            job=job,
-            stage_id=stage_id,
-            stage_title="Crazy Ideas",
-        )
+        if stage_id == "brainstorm_parallel":
+            market_input = _build_interactive_stage_input(
+                job=job,
+                stage_id=stage_id,
+                stage_title="Market Analysis",
+            )
 
-        market_md = await _run_agent_once(
-            agent=market_agent,
-            input_text=market_input,
-            user_id=user_id,
-            session_id=f"market_{uuid.uuid4().hex}",
-            session_service=session_service,
-        )
+            crazy_input = _build_interactive_stage_input(
+                job=job,
+                stage_id=stage_id,
+                stage_title="Crazy Ideas",
+            )
 
-        await asyncio.sleep(2)
+            market_md = await _run_agent_once(
+                agent=market_agent,
+                input_text=market_input,
+                user_id=user_id,
+                session_id=f"market_{uuid.uuid4().hex}",
+                session_service=session_service,
+            )
 
-        crazy_md = await _run_agent_once(
-            agent=crazy_agent,
-            input_text=crazy_input,
-            user_id=user_id,
-            session_id=f"crazy_{uuid.uuid4().hex}",
-            session_service=session_service,
-        )
+            await asyncio.sleep(2)
 
-        return "\n\n---\n\n".join(
-            block for block in [market_md, crazy_md] if block
-        ).strip()
+            crazy_md = await _run_agent_once(
+                agent=crazy_agent,
+                input_text=crazy_input,
+                user_id=user_id,
+                session_id=f"crazy_{uuid.uuid4().hex}",
+                session_service=session_service,
+            )
 
-    else:
+            return "\n\n---\n\n".join(
+                block for block in [market_md, crazy_md] if block
+            ).strip()
+
         input_text = _build_interactive_stage_input(
             job=job,
             stage_id=stage_id,
@@ -797,13 +723,21 @@ async def run_interactive_stage_adk(
         else:
             raise ValueError(f"Unknown stage_id: {stage_id}")
 
-    return await _run_agent_once(
-        agent=agent,
-        input_text=input_text,
-        user_id=user_id,
-        session_id=f"interactive_{stage_id}_{uuid.uuid4().hex}",
-        session_service=session_service,
-    )
+        return await _run_agent_once(
+            agent=agent,
+            input_text=input_text,
+            user_id=user_id,
+            session_id=f"interactive_{stage_id}_{uuid.uuid4().hex}",
+            session_service=session_service,
+        )
+
+    except Exception as exc:
+        return _local_fallback_output(
+            stage_id=stage_id,
+            stage_title=stage_title,
+            job=job,
+            error_text=str(exc),
+        )
 
 
 async def run_interactive_judge_adk(
@@ -839,13 +773,43 @@ async def run_interactive_judge_adk(
         stage_content,
     ])
 
-    return await _run_agent_once(
-        agent=evaluation_agent,
-        input_text=input_text,
-        user_id=user_id,
-        session_id=f"judge_{stage_id}_{uuid.uuid4().hex}",
-        session_service=session_service,
-    )
+    try:
+        return await _run_agent_once(
+            agent=evaluation_agent,
+            input_text=input_text,
+            user_id=user_id,
+            session_id=f"judge_{stage_id}_{uuid.uuid4().hex}",
+            session_service=session_service,
+        )
+    except Exception as exc:
+        return f"""
+[QUALITY_SCORES]
+- Overall: 7 — Fallback judge review generated because Gemini judge was unavailable.
+- PromptAdherence: 7 — The output appears structurally usable but should be checked manually.
+- Clarity: 7 — The output is readable.
+- Feasibility: 7 — The idea appears feasible if scoped tightly.
+- AlignmentWithIdea: 8 — The output appears aligned with the submitted idea.
+
+[COMMENT_SUMMARY]
+- Gemini judge was temporarily unavailable.
+- Review the output manually before approving.
+- Check that the output preserves the founder idea.
+- Add human feedback if the output is too broad or too generic.
+
+[ISSUES_AND_FLAGS]
+- Model judge failed with: {str(exc)}
+- This is a local fallback review.
+
+[IMPROVEMENT_SUGGESTIONS]
+- Make the output more specific.
+- Add measurable success criteria.
+- Clarify MVP boundary.
+- Preserve the original target user and problem.
+- Remove any unrelated ideas.
+
+[REWRITTEN_VERSION]
+{stage_content}
+""".strip()
 
 
 async def run_interactive_reviewer_adk(
@@ -871,13 +835,25 @@ async def run_interactive_reviewer_adk(
         feedback_mode=feedback_mode,
     )
 
-    return await _run_agent_once(
-        agent=reviewer_agent,
-        input_text=input_text,
-        user_id=user_id,
-        session_id=f"reviewer_{stage_id}_{uuid.uuid4().hex}",
-        session_service=session_service,
-    )
+    try:
+        return await _run_agent_once(
+            agent=reviewer_agent,
+            input_text=input_text,
+            user_id=user_id,
+            session_id=f"reviewer_{stage_id}_{uuid.uuid4().hex}",
+            session_service=session_service,
+        )
+    except Exception as exc:
+        return _local_fallback_output(
+            stage_id=stage_id,
+            stage_title=stage_title,
+            job=job,
+            current_output=current_output,
+            human_feedback=human_feedback,
+            judge_feedback=judge_feedback,
+            feedback_mode=feedback_mode,
+            error_text=str(exc),
+        )
 
 
 __all__ = [
