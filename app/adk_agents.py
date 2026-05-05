@@ -1,7 +1,19 @@
 """
 Nextify ADK Interactive Agents
 
-This file powers the interactive Human-in-the-Loop workflow.
+This file powers the interactive Human-in-the-Loop workflow:
+
+Raw idea form
+→ Input Parser Agent
+→ LLM Judge
+→ Reviewer Agent applies human / judge / both feedback
+→ user accepts output
+→ accepted output becomes input to next agent
+
+Every stage supports:
+- run stage
+- judge stage
+- revise stage
 
 Stability behavior:
 - Tries Gemini/ADK first.
@@ -23,6 +35,10 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 
+# ============================================================
+# CONFIG
+# ============================================================
+
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 EVAL_MODEL = os.getenv("GEMINI_EVAL_MODEL", "gemini-2.5-flash-lite")
 APP_NAME = "nextify_interactive_adk_app"
@@ -41,52 +57,87 @@ INTERACTIVE_STAGE_IDS = [
 ]
 
 
+# ============================================================
+# PROMPTS
+# ============================================================
+
 INPUT_PARSER_PROMPT = """
 You are the Input Parser Agent for Nextify.
 
 Your job is to turn the raw founder idea form into a clean, structured product brief.
 
-Rules:
+CRITICAL RULES:
+- You MUST include the exact original form content first.
+- You MUST include the idea title.
+- Do not omit any submitted field.
+- Do not rewrite the original form fields in the "Original Submitted Form" section.
 - Preserve the user's original idea.
 - Do not invent a different product.
-- Be clear, practical, and useful for the next agent.
-- Do not include internal reasoning.
+- After showing the exact form content, add your structured interpretation.
 - Return markdown only.
+- Do not include internal reasoning.
+
+You receive these fields:
+- idea_title
+- idea_text
+- target_users
+- problem
+- constraints
 
 Output exactly this structure:
 
 # Parsed Product Brief
 
-## Clean Product Concept
-Explain the product clearly.
+## Original Submitted Form
 
-## Target Users
-List the target users.
+### Idea Title
+Copy the exact idea_title value here.
 
-## Problem Statement
-Clarify the problem.
+### Idea Description
+Copy the exact idea_text value here.
 
-## Constraints
-List constraints.
+### Target Users
+Copy the exact target_users value here.
 
-## Product Type
+### Problem
+Copy the exact problem value here.
+
+### Constraints
+Copy the exact constraints value here.
+
+---
+
+## Agent-Structured Interpretation
+
+### Clean Product Concept
+Explain the product clearly using the submitted idea.
+
+### Product Type
 Classify the product.
 
-## MVP Boundary
+### MVP Boundary
 Define the smallest useful MVP.
 
-## Key Assumptions
+### Key Assumptions
 List key assumptions.
 
-## Key Risks
+### Key Risks
 List key risks.
 
-## Next Agent Input
+### Missing Information / Clarifying Questions
+List anything the next agent may need later.
+
+### Next Agent Input
 Summarize what the Brainstorming Agent should use as source of truth.
 """
 
 MARKET_ANALYSIS_PROMPT = """
 You are the MarketAnalysisAgent for Nextify.
+
+You receive:
+- the founder idea form
+- the previous accepted stage output
+- all accepted context so far
 
 Your job:
 1. Identify the relevant market.
@@ -96,10 +147,29 @@ Your job:
 5. Stay faithful to the founder idea and prior accepted output.
 
 Return markdown only.
+
+Output:
+
+[MARKET_DATA]
+## 🌍 Market Overview
+
+## 📊 TAM / SAM / SOM
+
+## 🏁 Competitor Landscape
+
+| Name | Type | What they offer | Strengths | Weaknesses / Gaps |
+|---|---|---|---|---|
+
+## 🎯 Strategic Insights & Positioning
 """
 
 CRAZY_IDEA_PROMPT = """
 You are the CrazyIdeaAgent for Nextify.
+
+You receive:
+- the founder idea form
+- the previous accepted stage output
+- all accepted context so far
 
 Your job:
 Generate 3–5 bold but MVP-buildable product concepts.
@@ -110,10 +180,27 @@ Rules:
 - Respect constraints.
 - Make the concepts distinct.
 - Return markdown only.
+
+Output:
+
+[CRAZY_IDEAS]
+## 🎨 Concept Space
+
+For each concept:
+- Name
+- Summary
+- Why it might win
+- Risks / downsides
 """
 
 IDEA_COOKER_PROMPT = """
 You are the IdeaCookerAgent for Nextify.
+
+You receive:
+- MarketAnalysisAgent output
+- CrazyIdeaAgent output
+- founder idea form
+- previous accepted context
 
 Your job:
 1. Evaluate the strongest concepts.
@@ -121,76 +208,239 @@ Your job:
 3. Recommend one winning concept.
 4. Ask the user to approve or give feedback.
 
-Return markdown only.
+Rules:
+- Preserve the user's original product direction.
+- Do not invent unrelated concepts.
+- If the user has selected or preferred a concept in feedback, respect it.
+- Return markdown only.
+
+Output:
+
+[TRADEOFF_TABLE]
+## ⚖️ Tradeoff Analysis
+
+| Concept Name | Differentiation | Market Demand | Feasibility | Strategic Fit | Monetization | Total Score |
+|---|---:|---:|---:|---:|---:|---:|
+
+[TRADEOFF_SUMMARY]
+## 🧠 Tradeoff Summary
+
+[PRODUCT_SNAPSHOT_MD]
+## 🧾 Product Snapshot
+- Problem
+- Target users
+- Concept summary
+- Core value proposition
+- MVP scope
+- Risks and mitigations
+- Example use cases
+
+## User Decision Needed
+Tell the user what to approve or how to give feedback.
 """
 
 THEME_EPIC_PROMPT = """
 You are the ThemeEpicAgent for Nextify.
 
+You receive the accepted product snapshot or accepted prior stage output.
+
 Your job:
-Create 3–5 strategic themes and epics from the accepted product direction.
+Create 3–5 strategic themes and epics.
 
 Return markdown only.
+
+Output:
+
+[THEME_EPIC_MD]
+## 🎯 Strategic Themes
+
+For each theme:
+- Theme name
+- Why it matters
+- User / business value
+
+## 🧩 Epics
+
+For each epic:
+- Epic name
+- Mapped theme
+- What this epic covers
+- Why this belongs in roadmap planning
 """
 
 ROADMAP_PROMPT = """
 You are the RoadmapAgent for Nextify.
 
+You receive accepted themes and epics.
+
 Your job:
 Create a realistic roadmap for an early-stage MVP.
 
 Return markdown only.
+
+Output:
+
+[ROADMAP_GENERATOR_MD]
+## 🗺️ Strategic Roadmap
+
+### Phase 1 – Foundation / MVP
+
+### Phase 2 – Validation / Expansion
+
+### Phase 3 – Optimization / Scale
+
+## 🔗 Roadmap Logic
 """
 
 FEATURE_PROMPT = """
 You are the FeatureGenerationAgent for Nextify.
 
+You receive the accepted roadmap and product direction.
+
 Your job:
 Generate a clean feature list for MVP and near-term roadmap.
 
 Return markdown only.
+
+Output:
+
+[FEATURE_LIST]
+## 🧱 Feature List
+
+| id | feature_name | what_it_does | why_it_matters | impact | effort | tags |
+|---|---|---|---|---|---|---|
+
+[FEATURE_DETAILS]
+## 🔍 Feature Details
 """
 
 PRIORITIZATION_PROMPT = """
 You are the PrioritizationAgent for Nextify.
 
+You receive the accepted feature list.
+
 Your job:
 Apply RICE prioritization and create a short feature roadmap.
 
 Return markdown only.
+
+Output:
+
+[RICE_TABLE]
+## 📊 RICE Prioritization Table
+
+| id | feature_name | reach | impact | confidence | effort | rice_score | priority_rank |
+|---|---|---:|---:|---:|---:|---:|---:|
+
+[RICE_SUMMARY]
+## 🧠 RICE Summary
+
+[ROADMAP_MD]
+## 🗺️ Feature Roadmap
 """
 
 OKR_PROMPT = """
 You are the OKRAgent for Nextify.
 
+You receive the accepted product direction, roadmap, features, and priorities.
+
 Your job:
 Generate a small, realistic quarterly OKR set.
 
 Return markdown only.
+
+Output:
+
+[OKR_SUMMARY]
+
+[OBJECTIVES]
+
+[KEY_RESULTS]
+
+[MILESTONES_AND_CHECKPOINTS]
+
+[METRICS_AND_INSTRUMENTATION]
 """
 
 PLANNER_PROMPT = """
 You are the Three-Month Planner Agent for Nextify.
 
+You receive the accepted OKRs and upstream context.
+
 Your job:
 Create a practical 3-month execution plan.
 
 Return markdown only.
+
+Output:
+
+[THREE_MONTH_OVERVIEW]
+
+[MONTHLY_BREAKDOWN]
+
+[WEEKLY_PLAN]
+
+[EXPERIMENTS_AND_LEARNING]
+
+[RISKS_AND_DEPENDENCIES]
 """
 
 REPORT_PROMPT = """
 You are the Report Writer Agent for Nextify.
 
+You receive all accepted stage outputs.
+
 Your job:
-Assemble all accepted stage outputs into a clean final product plan.
+Assemble them into a clean final product plan.
 
 Return markdown only.
+
+Output:
+
+# Final Product Plan
+
+## Product Concept
+
+## Target Users
+
+## Problem
+
+## Recommended Direction
+
+## MVP Scope
+
+## Roadmap
+
+## Prioritized Features
+
+## OKRs
+
+## Three-Month Execution Plan
+
+## Next Steps
 """
 
 EVALUATOR_PROMPT = """
 You are the Evaluation & Quality Agent for Nextify.
 
 You evaluate exactly one selected stage output.
+
+You receive:
+- STAGE_NAME
+- STAGE_KEY
+- STAGE_CONTENT
+- ORIGINAL_PROMPT
+- FOUNDER_IDEA_FORM
+- PREVIOUS_ACCEPTED_OUTPUT
+- ALL_ACCEPTED_CONTEXT
+
+Assess:
+1. Prompt adherence
+2. Clarity
+3. Coherence
+4. Feasibility
+5. Alignment with the founder idea
+6. Alignment with prior accepted context
 
 Return markdown only.
 
@@ -230,7 +480,59 @@ Rules:
 - Return only the improved stage artifact.
 - Make the output clearer, more specific, and more decision-ready.
 - Return markdown only.
+
+Special rule for parse_submission:
+The revised parser output MUST still include the exact original form content first.
+Return:
+# Parsed Product Brief — Revised Version
+
+## Original Submitted Form
+
+### Idea Title
+Copy or preserve the exact original idea_title.
+
+### Idea Description
+Copy or preserve the exact original idea_text.
+
+### Target Users
+Copy or preserve the exact original target_users.
+
+### Problem
+Copy or preserve the exact original problem.
+
+### Constraints
+Copy or preserve the exact original constraints.
+
+---
+
+## Agent-Structured Interpretation
+
+### Clean Product Concept
+Improve the interpretation based on feedback.
+
+### Product Type
+Classify the product.
+
+### MVP Boundary
+Define the smallest useful MVP.
+
+### Key Assumptions
+List key assumptions.
+
+### Key Risks
+List key risks.
+
+### Missing Information / Clarifying Questions
+List anything the next agent may need later.
+
+### Next Agent Input
+Summarize what the Brainstorming Agent should use as source of truth.
+
+Special rule for idea_cooker:
+- Preserve scored concept comparison.
+- If human feedback chooses or combines ideas, reflect that in the recommendation.
 """
+
 
 STAGE_PROMPTS = {
     "parse_submission": INPUT_PARSER_PROMPT,
@@ -248,6 +550,10 @@ STAGE_PROMPTS = {
 }
 
 
+# ============================================================
+# AGENTS
+# ============================================================
+
 input_parser_agent = LlmAgent(name="InputParserAgent", model=MODEL_NAME, instruction=INPUT_PARSER_PROMPT)
 market_agent = LlmAgent(name="MarketAnalysisAgent", model=MODEL_NAME, instruction=MARKET_ANALYSIS_PROMPT)
 crazy_agent = LlmAgent(name="CrazyIdeaAgent", model=MODEL_NAME, instruction=CRAZY_IDEA_PROMPT)
@@ -263,6 +569,10 @@ evaluation_agent = LlmAgent(name="EvaluatorAgent", model=EVAL_MODEL, instruction
 reviewer_agent = LlmAgent(name="ReviewerAgent", model=EVAL_MODEL, instruction=REVIEWER_PROMPT)
 
 
+# ============================================================
+# HELPERS
+# ============================================================
+
 def _json_pretty(data: Dict[str, Any]) -> str:
     try:
         return json.dumps(data, indent=2, ensure_ascii=False)
@@ -271,19 +581,20 @@ def _json_pretty(data: Dict[str, Any]) -> str:
 
 
 def _render_idea_form_md(idea_form: Dict[str, Any]) -> str:
-    lines: list[str] = []
-
-    title = idea_form.get("idea_title")
-    if title:
-        lines.append(f"# {title}")
-
-    for key, value in idea_form.items():
-        if key == "idea_title":
-            continue
-        pretty_key = key.replace("_", " ").title()
-        lines.append(f"- **{pretty_key}:** {value}")
-
-    return "\n".join(lines)
+    """
+    Render the founder form in markdown.
+    This version always includes the idea title as an explicit labelled field,
+    not only as a markdown H1.
+    """
+    return "\n".join(
+        [
+            f"- **Idea Title:** {idea_form.get('idea_title', '')}",
+            f"- **Idea Description:** {idea_form.get('idea_text', '')}",
+            f"- **Target Users:** {idea_form.get('target_users', '')}",
+            f"- **Problem:** {idea_form.get('problem', '')}",
+            f"- **Constraints:** {idea_form.get('constraints', '')}",
+        ]
+    )
 
 
 def _previous_stage_id(stage_id: str) -> str | None:
@@ -397,7 +708,7 @@ def _local_fallback_output(
     error_text: str = "",
 ) -> str:
     payload = job.get("payload", {}) or {}
-    idea_title = payload.get("idea_title", "Untitled idea")
+    idea_title = payload.get("idea_title", "")
     idea_text = payload.get("idea_text", "")
     target_users = payload.get("target_users", "")
     problem = payload.get("problem", "")
@@ -409,38 +720,57 @@ def _local_fallback_output(
         return f"""
 # Parsed Product Brief — Local Fallback Version
 
-## Clean Product Concept
-{idea_title}
+## Original Submitted Form
 
-{idea_text}
+### Idea Title
+{idea_title or "Not provided."}
 
-## Target Users
-{target_users or "Not specified yet."}
+### Idea Description
+{idea_text or "Not provided."}
 
-## Problem Statement
-{problem or "Not specified yet."}
+### Target Users
+{target_users or "Not provided."}
 
-## Constraints
-{constraints or "Not specified yet."}
+### Problem
+{problem or "Not provided."}
 
-## Product Type
-AI-powered product management and product strategy assistant.
+### Constraints
+{constraints or "Not provided."}
 
-## MVP Boundary
-Focus the MVP on one strong workflow: turning messy product inputs into one structured, decision-ready output.
+---
 
-## Key Assumptions
-- Target users have scattered product information across notes, meetings, customer feedback, and planning tools.
-- A focused assistant can create value before becoming a full product operating system.
-- The first version should prioritize clarity, speed, and integration with existing workflows.
+## Agent-Structured Interpretation
 
-## Key Risks
-- The MVP may become too broad if too many workflows are included.
-- Users may not trust generated outputs without transparent review and editing.
-- Integrations can slow down delivery if they are added too early.
+### Clean Product Concept
+{idea_title or "This product"} is an AI-powered product management assistant that helps product managers, founders, and product teams transform messy product inputs into structured product artifacts, decisions, and execution plans.
 
-## Next Agent Input
-Use this idea as the source of truth: build a focused AI workspace for product managers that transforms messy inputs into structured product artifacts and supports human feedback loops.
+### Product Type
+AI-powered product management workspace / product strategy assistant.
+
+### MVP Boundary
+Focus the MVP on one strong workflow:
+
+**idea or messy product input → parsed brief → brainstorm → prioritization → roadmap → feedback loop**
+
+### Key Assumptions
+- Product managers and founders have scattered product information across notes, documents, customer feedback, and meetings.
+- Users will value an AI assistant that creates structured outputs while preserving human control.
+- The first version should focus on one workflow instead of trying to replace every PM tool.
+- Human feedback and LLM judge review can increase trust in generated outputs.
+
+### Key Risks
+- The product may become too broad if it tries to support too many workflows at once.
+- Users may not trust AI-generated product decisions without transparency and editability.
+- Integrations with Notion, Slack, Jira, or docs can slow the MVP if added too early.
+- The product needs a clear wedge to avoid becoming a generic chatbot.
+
+### Missing Information / Clarifying Questions
+- Which first artifact matters most: PRD, roadmap, feature list, OKRs, or prioritization table?
+- Should the MVP start with Notion integration or manual copy-paste input?
+- Is the first audience solo PMs, startup founders, or product teams inside companies?
+
+### Next Agent Input
+Use the exact submitted form and this structured interpretation as source of truth. The Brainstorming Agent should generate market-grounded and creative product directions without changing the original idea.
 
 ## System Note
 Gemini was temporarily unavailable, so this fallback output was generated locally. Last model error: {error_text}
@@ -653,10 +983,8 @@ async def run_interactive_stage_adk(
                 stage_id=stage_id,
                 stage_title=stage_title,
             )
-            agent = input_parser_agent
-
             return await _run_agent_once(
-                agent=agent,
+                agent=input_parser_agent,
                 input_text=input_text,
                 user_id=user_id,
                 session_id=f"interactive_{stage_id}_{uuid.uuid4().hex}",
