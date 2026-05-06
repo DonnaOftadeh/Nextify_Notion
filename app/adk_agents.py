@@ -9,10 +9,11 @@ Raw idea form
 → user accepts output
 → accepted output becomes input to next agent
 
-Fixes included:
-- Parser always prints the exact original form content first.
-- Brainstorm revision cannot accidentally become parser output.
-- Reviewer is stage-aware.
+Key fixes:
+- Parser always prints exact original form content first.
+- Brainstorm/Crazy Ideas include real-world analogies and links.
+- Reviewer is stage-aware and applies human feedback visibly.
+- Brainstorm revisions cannot accidentally become parser output.
 - Gemini 503 / 429 retry is supported.
 - Local fallback keeps the UI usable if Gemini is overloaded.
 """
@@ -22,7 +23,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import re
 import uuid
 from typing import Any, Dict
 
@@ -31,6 +31,10 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
+
+# ============================================================
+# CONFIG
+# ============================================================
 
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 EVAL_MODEL = os.getenv("GEMINI_EVAL_MODEL", "gemini-2.5-flash-lite")
@@ -49,6 +53,10 @@ INTERACTIVE_STAGE_IDS = [
     "write_report_pdf",
 ]
 
+
+# ============================================================
+# PROMPTS
+# ============================================================
 
 INPUT_PARSER_PROMPT = """
 You are the Input Parser Agent for Nextify.
@@ -120,6 +128,7 @@ List anything the next agent may need later.
 Summarize what the Brainstorming Agent should use as source of truth.
 """
 
+
 MARKET_ANALYSIS_PROMPT = """
 You are the MarketAnalysisAgent for Nextify.
 
@@ -127,6 +136,8 @@ You receive:
 - the founder idea form
 - the previous accepted stage output
 - all accepted context so far
+- optional human feedback
+- optional LLM judge feedback
 
 Your job:
 1. Identify the relevant market.
@@ -134,6 +145,8 @@ Your job:
 3. Identify direct and indirect competitors.
 4. Explain market gaps and positioning opportunities.
 5. Stay faithful to the founder idea and prior accepted output.
+6. Include real-world competitor and analogy product links where relevant.
+7. Apply human feedback when provided.
 
 Return markdown only.
 
@@ -146,46 +159,82 @@ Output:
 
 ## 🏁 Competitor Landscape
 
-| Name | Type | What they offer | Strengths | Weaknesses / Gaps |
-|---|---|---|---|---|
+| Name | Type | URL | What they offer | Strengths | Weaknesses / Gaps |
+|---|---|---|---|---|---|
+
+## 🔗 Real-World Analogy Map
+
+| Product | URL | What Nextify can learn from it |
+|---|---|---|
 
 ## 🎯 Strategic Insights & Positioning
 """
 
+
 CRAZY_IDEA_PROMPT = """
 You are the CrazyIdeaAgent for Nextify.
+
+Your job is to generate bold, novel, creative, but still MVP-buildable product concepts.
 
 You receive:
 - the founder idea form
 - the previous accepted stage output
 - all accepted context so far
+- optional human feedback
+- optional LLM judge feedback
 
-Your job:
-Generate 3–5 bold, creative, novel, but MVP-buildable product concepts.
-
-Important:
-- Keep creativity and novelty high.
-- But each idea must include a simple MVP version.
-- Do not make every idea boring or too safe.
+CRITICAL RULES:
+- You MUST apply human feedback when provided.
+- You MUST keep creativity and novelty high.
+- You MUST make every idea simple enough to start as an MVP.
+- You MUST include real-world analogies, inspiration products, and links.
+- Use well-known real products only.
+- Do not invent fake company names.
+- Do not return parser output.
+- Do not include “Parsed Product Brief”.
 - Stay faithful to the founder idea.
-- Do not invent an unrelated product.
-- Respect constraints.
-- Make the concepts distinct.
 - Return markdown only.
 
-Output:
+Output exactly:
 
 [CRAZY_IDEAS]
 ## 🎨 Concept Space
 
 For each concept:
-- Name
-- Summary
-- Why it might win
-- Simple MVP version
-- Future breakthrough version
-- Risks / downsides
+
+### Concept <number> — <name>
+
+- **Summary:** <2–3 sentence description>
+- **Real-world analogies mixed:**
+  - **<Product name>:** <official URL> — <what part of this product is being borrowed>
+  - **<Product name>:** <official URL> — <what part of this product is being borrowed>
+  - **<Product name>:** <official URL> — <what part of this product is being borrowed>
+- **Why this mix is novel:** <explain the new combination>
+- **Why it might win:**
+  - <bullet>
+  - <bullet>
+- **Simple MVP version:** <small version that can be built first>
+- **Future breakthrough version:** <ambitious version later>
+- **Risks / downsides:**
+  - <bullet>
+  - <bullet>
+
+Generate 3–5 concepts.
+
+For the Cursor for Product Managers idea, useful analogy sources may include:
+- Cursor: https://www.cursor.com/
+- Notion AI: https://www.notion.com/product/ai
+- Linear: https://linear.app/
+- Jira Product Discovery: https://www.atlassian.com/software/jira/product-discovery
+- Productboard: https://www.productboard.com/
+- Dovetail: https://dovetail.com/
+- Miro: https://miro.com/
+- Perplexity: https://www.perplexity.ai/
+- Gamma: https://gamma.app/
+- Coda: https://coda.io/
+- Airtable: https://www.airtable.com/
 """
+
 
 IDEA_COOKER_PROMPT = """
 You are the IdeaCookerAgent for Nextify.
@@ -206,6 +255,7 @@ Rules:
 - Preserve the user's original product direction.
 - Do not invent unrelated concepts.
 - If the user has selected or preferred a concept in feedback, respect it.
+- Use the real-world analogy map from the Brainstorm stage when useful.
 - Return markdown only.
 
 Output:
@@ -226,12 +276,14 @@ Output:
 - Concept summary
 - Core value proposition
 - MVP scope
+- Real-world analogies used
 - Risks and mitigations
 - Example use cases
 
 ## User Decision Needed
 Tell the user what to approve or how to give feedback.
 """
+
 
 THEME_EPIC_PROMPT = """
 You are the ThemeEpicAgent for Nextify.
@@ -262,6 +314,7 @@ For each epic:
 - Why this belongs in roadmap planning
 """
 
+
 ROADMAP_PROMPT = """
 You are the RoadmapAgent for Nextify.
 
@@ -286,6 +339,7 @@ Output:
 ## 🔗 Roadmap Logic
 """
 
+
 FEATURE_PROMPT = """
 You are the FeatureGenerationAgent for Nextify.
 
@@ -307,6 +361,7 @@ Output:
 [FEATURE_DETAILS]
 ## 🔍 Feature Details
 """
+
 
 PRIORITIZATION_PROMPT = """
 You are the PrioritizationAgent for Nextify.
@@ -333,6 +388,7 @@ Output:
 ## 🗺️ Feature Roadmap
 """
 
+
 OKR_PROMPT = """
 You are the OKRAgent for Nextify.
 
@@ -356,6 +412,7 @@ Output:
 [METRICS_AND_INSTRUMENTATION]
 """
 
+
 PLANNER_PROMPT = """
 You are the Three-Month Planner Agent for Nextify.
 
@@ -378,6 +435,7 @@ Output:
 
 [RISKS_AND_DEPENDENCIES]
 """
+
 
 REPORT_PROMPT = """
 You are the Report Writer Agent for Nextify.
@@ -405,6 +463,7 @@ Output:
 ## Next Steps
 """
 
+
 EVALUATOR_PROMPT = """
 You are the Evaluation & Quality Agent for Nextify.
 
@@ -414,6 +473,7 @@ Important:
 - Evaluate only the current selected stage.
 - Do not rewrite the output as a different stage.
 - If STAGE_KEY is brainstorm_parallel, your rewritten version must preserve [MARKET_DATA] and [CRAZY_IDEAS].
+- If STAGE_KEY is brainstorm_parallel, check whether crazy ideas include real-world analogies and links.
 - If STAGE_KEY is parse_submission, your rewritten version must preserve the original submitted form.
 
 Return markdown only.
@@ -440,6 +500,7 @@ Output exactly:
 - A revised version of the same selected stage content, not a different stage.
 """
 
+
 REVIEWER_PROMPT = """
 You are the Nextify Reviewer/Rewriter Agent.
 
@@ -449,6 +510,8 @@ You revise exactly one selected stage output using:
 - or both
 
 CRITICAL RULES:
+- You MUST apply human feedback when provided.
+- You MUST visibly reflect the human feedback in the revised output.
 - You must preserve the current stage type.
 - You must not return an output for a previous stage.
 - Ignore any [REWRITTEN_VERSION] from the judge if it belongs to a different stage.
@@ -457,8 +520,6 @@ CRITICAL RULES:
 - Do not invent an unrelated product.
 - Return only the improved stage artifact.
 - Return markdown only.
-
-Stage-specific rules:
 
 If STAGE_KEY is parse_submission:
 Return:
@@ -483,7 +544,7 @@ Return:
 ### Next Agent Input
 
 If STAGE_KEY is brainstorm_parallel:
-You MUST return a Brainstorm Parallel output.
+You MUST return Brainstorm Parallel output only.
 You MUST include both:
 [MARKET_DATA]
 and
@@ -495,25 +556,42 @@ You MUST NOT return:
 Original Submitted Form
 Agent-Structured Interpretation
 
-For brainstorm_parallel, revise the market analysis and crazy ideas using feedback.
-Keep novelty and creativity high, but add simple MVP scope to each crazy idea.
+For brainstorm_parallel:
+- Keep the market analysis.
+- Revise the crazy ideas using human feedback.
+- Keep novelty and creativity high.
+- Make every idea MVP-buildable.
+- Add real-world analogies, inspiration products, and links.
+- Explain what is being mixed from each analogy product.
+- Use well-known real products only.
+- Do not invent fake product names.
 
-Required structure:
+Required brainstorm_parallel structure:
+
 [MARKET_DATA]
 ## 🌍 Market Overview
 ## 📊 TAM / SAM / SOM
 ## 🏁 Competitor Landscape
+## 🔗 Real-World Analogy Map
 ## 🎯 Strategic Insights & Positioning
 
 [CRAZY_IDEAS]
 ## 🎨 Concept Space
+
 For each concept:
-- Name
-- Summary
-- Why it might win
-- Simple MVP version
-- Future breakthrough version
-- Risks / downsides
+
+### Concept <number> — <name>
+
+- **Summary:**
+- **Real-world analogies mixed:**
+  - **Product:** URL — borrowed element
+  - **Product:** URL — borrowed element
+  - **Product:** URL — borrowed element
+- **Why this mix is novel:**
+- **Why it might win:**
+- **Simple MVP version:**
+- **Future breakthrough version:**
+- **Risks / downsides:**
 
 If STAGE_KEY is idea_cooker:
 Preserve scored concept comparison.
@@ -537,6 +615,10 @@ STAGE_PROMPTS = {
 }
 
 
+# ============================================================
+# AGENTS
+# ============================================================
+
 input_parser_agent = LlmAgent(name="InputParserAgent", model=MODEL_NAME, instruction=INPUT_PARSER_PROMPT)
 market_agent = LlmAgent(name="MarketAnalysisAgent", model=MODEL_NAME, instruction=MARKET_ANALYSIS_PROMPT)
 crazy_agent = LlmAgent(name="CrazyIdeaAgent", model=MODEL_NAME, instruction=CRAZY_IDEA_PROMPT)
@@ -551,6 +633,10 @@ report_writer_agent = LlmAgent(name="ReportWriterAgent", model=MODEL_NAME, instr
 evaluation_agent = LlmAgent(name="EvaluatorAgent", model=EVAL_MODEL, instruction=EVALUATOR_PROMPT)
 reviewer_agent = LlmAgent(name="ReviewerAgent", model=EVAL_MODEL, instruction=REVIEWER_PROMPT)
 
+
+# ============================================================
+# HELPERS
+# ============================================================
 
 def _json_pretty(data: Dict[str, Any]) -> str:
     try:
@@ -574,20 +660,29 @@ def _render_idea_form_md(idea_form: Dict[str, Any]) -> str:
 def _previous_stage_id(stage_id: str) -> str | None:
     if stage_id not in INTERACTIVE_STAGE_IDS:
         return None
+
     idx = INTERACTIVE_STAGE_IDS.index(stage_id)
+
     if idx == 0:
         return None
+
     return INTERACTIVE_STAGE_IDS[idx - 1]
 
 
 def _latest_accepted_output(job: Dict[str, Any], stage_id: str) -> str:
     previous_id = _previous_stage_id(stage_id)
+
     if not previous_id:
         return ""
 
     stages = job.get("interactive", {}).get("stages", {})
     previous_state = stages.get(previous_id, {})
-    return previous_state.get("accepted_output") or previous_state.get("agent_output") or ""
+
+    return (
+        previous_state.get("accepted_output")
+        or previous_state.get("agent_output")
+        or ""
+    )
 
 
 def _all_accepted_context(job: Dict[str, Any]) -> str:
@@ -635,7 +730,14 @@ def _build_interactive_stage_input(
         parts.extend(["## CURRENT_STAGE_OUTPUT", current_output])
 
     if human_feedback:
-        parts.extend(["## HUMAN_FEEDBACK", human_feedback])
+        parts.extend(
+            [
+                "## HUMAN_FEEDBACK",
+                human_feedback,
+                "## HUMAN_FEEDBACK_INSTRUCTION",
+                "This human feedback is non-negotiable. You must visibly apply it in the revised output.",
+            ]
+        )
 
     if judge_feedback:
         parts.extend(["## LLM_JUDGE_FEEDBACK", judge_feedback])
@@ -648,6 +750,7 @@ def _build_interactive_stage_input(
 
 def _is_temporary_model_error(error_text: str) -> bool:
     lower = (error_text or "").lower()
+
     return (
         "503" in error_text
         or "unavailable" in lower
@@ -758,13 +861,27 @@ The founder idea is best positioned as **Cursor for Product Managers**: an AI-na
 
 ## 🏁 Competitor Landscape
 
-| Name | Type | What they offer | Strengths | Weaknesses / Gaps |
-|---|---|---|---|---|
-| Notion AI | Indirect | AI inside workspace docs | Strong workspace adoption | Generic, not PM-specific |
-| ChatGPT / Claude | Indirect | General AI reasoning and drafting | Flexible and powerful | No persistent PM workflow or product context by default |
-| Jira Product Discovery | Adjacent | Product discovery and prioritization | Strong Atlassian ecosystem | Less generative and less like a product copilot |
-| Productboard | Adjacent | Feedback, insights, roadmap management | Strong PM workflows | Can be heavy and not AI-native enough for fast drafting |
-| Aha! | Adjacent | Strategy, roadmap, requirements | Comprehensive | Traditional PM suite, AI is not the core interaction model |
+| Name | Type | URL | What they offer | Strengths | Weaknesses / Gaps |
+|---|---|---|---|---|---|
+| Notion AI | Indirect | https://www.notion.com/product/ai | AI inside docs and workspace | Strong workspace adoption | Generic, not PM-specific |
+| ChatGPT / Claude | Indirect | https://chatgpt.com/ | General AI reasoning and drafting | Flexible and powerful | No persistent PM workflow by default |
+| Jira Product Discovery | Adjacent | https://www.atlassian.com/software/jira/product-discovery | Product discovery and prioritization | Strong Atlassian ecosystem | Less generative and less like a PM copilot |
+| Productboard | Adjacent | https://www.productboard.com/ | Feedback, insights, roadmap management | Strong PM workflows | Heavy and not AI-native enough for fast drafting |
+| Dovetail | Adjacent | https://dovetail.com/ | Research repository and insight synthesis | Strong research synthesis | Not a full PM strategy workspace |
+
+## 🔗 Real-World Analogy Map
+
+| Product | URL | What Nextify can learn from it |
+|---|---|---|
+| Cursor | https://www.cursor.com/ | Deep AI-native professional workspace for a specific role |
+| Notion AI | https://www.notion.com/product/ai | AI embedded inside flexible documents and knowledge bases |
+| Linear | https://linear.app/ | Fast, opinionated execution workflow and clean UX |
+| Jira Product Discovery | https://www.atlassian.com/software/jira/product-discovery | Product discovery and prioritization structures |
+| Productboard | https://www.productboard.com/ | Feedback-to-roadmap workflow |
+| Dovetail | https://dovetail.com/ | Research synthesis and insight repository |
+| Miro | https://miro.com/ | Visual collaboration and ideation canvas |
+| Perplexity | https://www.perplexity.ai/ | Answer engine with sourced exploration |
+| Gamma | https://gamma.app/ | Structured AI-generated presentation artifacts |
 
 ## 🎯 Strategic Insights & Positioning
 - Position as **Cursor for Product Managers**, not another generic AI writer.
@@ -777,49 +894,98 @@ The founder idea is best positioned as **Cursor for Product Managers**: an AI-na
 ## 🎨 Concept Space
 
 ### Concept 1 — PRD Autopilot
+
 - **Summary:** PMs paste messy notes, customer feedback, and goals. The system turns them into a structured PRD with assumptions, risks, acceptance criteria, and open questions.
-- **Why it might win:** PRDs are painful, frequent, and easy to demonstrate.
+- **Real-world analogies mixed:**
+  - **Cursor:** https://www.cursor.com/ — role-specific AI workspace that understands context
+  - **Notion AI:** https://www.notion.com/product/ai — AI inside editable docs
+  - **Coda:** https://coda.io/ — structured docs and product templates
+- **Why this mix is novel:** It combines AI-native role-specific assistance with editable PM documentation and structured product templates.
+- **Why it might win:**
+  - PRDs are painful, frequent, and easy to demonstrate.
+  - It gives a clear wedge before becoming a full PM operating system.
 - **Simple MVP version:** Text input box + PRD template generator + editable sections + feedback loop.
 - **Future breakthrough version:** Live PRD that updates from Slack, Notion, Jira, user interviews, and analytics.
-- **Risks / downsides:** Could be perceived as a document generator unless decision intelligence is emphasized.
+- **Risks / downsides:**
+  - Could be perceived as a document generator unless decision intelligence is emphasized.
+  - Needs strong output quality to earn trust.
 
 ### Concept 2 — Decision Memory Copilot
-- **Summary:** A product decision log that remembers why roadmap decisions were made and links them to evidence, feedback, and business goals.
-- **Why it might win:** PMs often struggle to justify decisions later.
-- **Simple MVP version:** Manual decision entry + AI summary + rationale and risk generator.
-- **Future breakthrough version:** Auto-captures decisions from meetings, docs, and roadmap changes.
-- **Risks / downsides:** Requires habit formation and strong UX.
+
+- **Summary:** A product decision log that remembers why roadmap decisions were made and links them to evidence, feedback, tradeoffs, and business goals.
+- **Real-world analogies mixed:**
+  - **Linear:** https://linear.app/ — clean execution workflow and issue history
+  - **Productboard:** https://www.productboard.com/ — feedback-to-roadmap evidence trail
+  - **Perplexity:** https://www.perplexity.ai/ — sourced answers and visible reasoning references
+- **Why this mix is novel:** It turns product decisions into traceable, evidence-backed artifacts rather than scattered meeting notes.
+- **Why it might win:**
+  - PMs often struggle to justify decisions later.
+  - It creates trust through traceability.
+- **Simple MVP version:** Manual decision entry + AI-generated rationale + evidence links + risk summary.
+- **Future breakthrough version:** Auto-captures decisions from meetings, docs, roadmap changes, and stakeholder comments.
+- **Risks / downsides:**
+  - Requires habit formation.
+  - Needs careful UX so it does not feel like extra admin work.
 
 ### Concept 3 — Opportunity Scout
+
 - **Summary:** The AI scans messy inputs and proposes product opportunities, user problems, feature bets, and experiments.
-- **Why it might win:** Helps PMs move from chaos to opportunity spaces.
-- **Simple MVP version:** Paste customer feedback and goals → generate 5 opportunities with evidence and experiments.
+- **Real-world analogies mixed:**
+  - **Dovetail:** https://dovetail.com/ — research synthesis and insight clustering
+  - **Miro:** https://miro.com/ — opportunity mapping and visual ideation
+  - **Jira Product Discovery:** https://www.atlassian.com/software/jira/product-discovery — opportunity prioritization workflow
+- **Why this mix is novel:** It combines research synthesis, visual ideation, and product prioritization into a guided opportunity engine.
+- **Why it might win:**
+  - Helps PMs move from chaos to opportunity spaces.
+  - Fits early discovery before PRDs and roadmap decisions.
+- **Simple MVP version:** Paste customer feedback and goals → generate 5 opportunities with evidence, priority, and validation experiments.
 - **Future breakthrough version:** Continuous opportunity radar connected to support, sales, analytics, and competitor changes.
-- **Risks / downsides:** Needs high-quality input and careful evaluation to avoid generic suggestions.
+- **Risks / downsides:**
+  - Needs quality inputs to avoid generic opportunities.
+  - Must explain why each opportunity matters.
 
 ### Concept 4 — Roadmap Debate Agent
+
 - **Summary:** The AI creates multiple roadmap options and argues the tradeoffs like a product leadership review.
-- **Why it might win:** Roadmap decisions are political, strategic, and hard to explain.
-- **Simple MVP version:** Generate three roadmap options: conservative, growth-focused, and innovation-led.
+- **Real-world analogies mixed:**
+  - **ChatGPT:** https://chatgpt.com/ — reasoning and argument generation
+  - **Jira Product Discovery:** https://www.atlassian.com/software/jira/product-discovery — prioritization and roadmap framing
+  - **Linear:** https://linear.app/ — execution sequencing and delivery clarity
+- **Why this mix is novel:** It brings strategic debate into roadmap planning instead of producing one flat recommendation.
+- **Why it might win:**
+  - Roadmap decisions are political, strategic, and hard to explain.
+  - It gives PMs options and tradeoffs, not just answers.
+- **Simple MVP version:** Generate three roadmap options: conservative, growth-focused, and innovation-led, each with tradeoffs.
 - **Future breakthrough version:** Multi-agent roadmap council with engineering, customer, market, and business perspectives.
-- **Risks / downsides:** Needs clear scoring criteria to avoid vague strategy language.
+- **Risks / downsides:**
+  - Needs clear scoring criteria.
+  - Could become verbose if not tightly designed.
 
 ### Concept 5 — Product Strategy Canvas Builder
+
 - **Summary:** A guided workspace that turns an early idea into positioning, users, problems, MVP scope, features, risks, and OKRs.
-- **Why it might win:** Great for founders and innovation teams who need structure quickly.
-- **Simple MVP version:** Step-by-step form + AI-generated canvas + export to Notion/PDF.
+- **Real-world analogies mixed:**
+  - **Miro:** https://miro.com/ — visual canvas and collaborative strategy mapping
+  - **Notion AI:** https://www.notion.com/product/ai — AI-generated structured workspaces
+  - **Gamma:** https://gamma.app/ — polished structured output generation
+- **Why this mix is novel:** It converts messy strategy thinking into a usable product canvas and shareable artifact.
+- **Why it might win:**
+  - Great for founders and innovation teams who need structure quickly.
+  - Easy to demo and export.
+- **Simple MVP version:** Step-by-step form + AI-generated canvas + export to markdown, Notion, or PDF.
 - **Future breakthrough version:** Full strategy operating system with memory, benchmarks, and investor-ready outputs.
-- **Risks / downsides:** May feel less novel unless interaction design is excellent.
+- **Risks / downsides:**
+  - May feel less novel unless the interaction design is excellent.
+  - Needs strong templates to be genuinely useful.
 
 ## Feedback Applied
-{human_feedback or "No human feedback was provided, but the fallback preserves creativity while making each idea MVP-buildable."}
+{human_feedback or "No human feedback was provided, but the fallback preserves creativity while making each idea MVP-buildable and analogy-rich."}
 
 ## Recommendation
-Keep the creative range, but make each crazy idea practical by separating:
+Keep the creative range, but make every idea practical by separating:
 1. the **simple MVP version**
 2. the **future breakthrough version**
-
-This keeps novelty without losing buildability.
+3. the **real-world analogy products being mixed**
 
 ## System Note
 Local fallback was used. Last model error: {error_text}
@@ -909,7 +1075,11 @@ async def _run_agent_once(
                 session_id=attempt_session_id,
             )
 
-            runner = Runner(agent=agent, app_name=APP_NAME, session_service=session_service)
+            runner = Runner(
+                agent=agent,
+                app_name=APP_NAME,
+                session_service=session_service,
+            )
 
             user_message = types.Content(
                 role="user",
@@ -965,6 +1135,7 @@ async def run_interactive_stage_adk(
                 stage_id=stage_id,
                 stage_title=stage_title,
             )
+
             output = await _run_agent_once(
                 agent=input_parser_agent,
                 input_text=input_text,
@@ -1004,7 +1175,9 @@ async def run_interactive_stage_adk(
                 session_service=session_service,
             )
 
-            output = "\n\n---\n\n".join(block for block in [market_md, crazy_md] if block).strip()
+            output = "\n\n---\n\n".join(
+                block for block in [market_md, crazy_md] if block
+            ).strip()
 
         else:
             input_text = _build_interactive_stage_input(
@@ -1075,32 +1248,33 @@ async def run_interactive_judge_adk(
     all_context = _all_accepted_context(job)
     original_prompt = STAGE_PROMPTS.get(stage_id, "")
 
-    input_text = "\n\n".join([
-        f"# STAGE_NAME\n{stage_title}",
-        f"## STAGE_KEY\n{stage_id}",
-        "## ORIGINAL_PROMPT",
-        original_prompt,
-        "## FOUNDER_IDEA_FORM_MARKDOWN",
-        founder_md,
-        "## FOUNDER_IDEA_FORM_JSON",
-        _json_pretty(founder_json),
-        "## PREVIOUS_ACCEPTED_OUTPUT",
-        previous_accepted or "No previous accepted output.",
-        "## ALL_ACCEPTED_CONTEXT",
-        all_context,
-        "## STAGE_CONTENT",
-        stage_content,
-    ])
+    input_text = "\n\n".join(
+        [
+            f"# STAGE_NAME\n{stage_title}",
+            f"## STAGE_KEY\n{stage_id}",
+            "## ORIGINAL_PROMPT",
+            original_prompt,
+            "## FOUNDER_IDEA_FORM_MARKDOWN",
+            founder_md,
+            "## FOUNDER_IDEA_FORM_JSON",
+            _json_pretty(founder_json),
+            "## PREVIOUS_ACCEPTED_OUTPUT",
+            previous_accepted or "No previous accepted output.",
+            "## ALL_ACCEPTED_CONTEXT",
+            all_context,
+            "## STAGE_CONTENT",
+            stage_content,
+        ]
+    )
 
     try:
-        feedback = await _run_agent_once(
+        return await _run_agent_once(
             agent=evaluation_agent,
             input_text=input_text,
             user_id=user_id,
             session_id=f"judge_{stage_id}_{uuid.uuid4().hex}",
             session_service=session_service,
         )
-        return feedback
 
     except Exception as exc:
         return f"""
@@ -1116,6 +1290,7 @@ async def run_interactive_judge_adk(
 - Review the output manually before approving.
 - Check that the output preserves the current stage type.
 - For Brainstorm Parallel, preserve both market analysis and creative ideas.
+- For Crazy Ideas, include real-world analogies, links, simple MVP versions, and future breakthrough versions.
 
 [ISSUES_AND_FLAGS]
 - Model judge failed with: {str(exc)}
@@ -1126,6 +1301,7 @@ async def run_interactive_judge_adk(
 - Add measurable success criteria.
 - Clarify MVP boundary.
 - Preserve the original target user and problem.
+- Add real-world analogy products and links.
 - Remove any unrelated ideas.
 
 [REWRITTEN_VERSION]
@@ -1155,6 +1331,15 @@ async def run_interactive_reviewer_adk(
         judge_feedback=judge_feedback,
         feedback_mode=feedback_mode,
     )
+
+    if human_feedback:
+        input_text += f"""
+
+# NON-NEGOTIABLE USER FEEDBACK TO APPLY
+{human_feedback}
+
+You must visibly apply this feedback in the revised output.
+"""
 
     try:
         output = await _run_agent_once(
