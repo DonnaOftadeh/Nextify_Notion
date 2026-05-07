@@ -573,19 +573,84 @@ STAGE_PROMPTS = {
 # AGENTS
 # ============================================================
 
-input_parser_agent = LlmAgent("InputParserAgent", model=MODEL_NAME, instruction=INPUT_PARSER_PROMPT)
-market_agent = LlmAgent("MarketAnalysisAgent", model=MODEL_NAME, instruction=MARKET_ANALYSIS_PROMPT)
-crazy_agent = LlmAgent("CrazyIdeaAgent", model=MODEL_NAME, instruction=CRAZY_IDEA_PROMPT)
-idea_cooker_agent = LlmAgent("IdeaCookerAgent", model=MODEL_NAME, instruction=IDEA_COOKER_PROMPT)
-theme_epic_agent = LlmAgent("ThemeEpicAgent", model=MODEL_NAME, instruction=THEME_EPIC_PROMPT)
-roadmap_agent = LlmAgent("RoadmapAgent", model=MODEL_NAME, instruction=ROADMAP_PROMPT)
-feature_agent = LlmAgent("FeatureGenerationAgent", model=MODEL_NAME, instruction=FEATURE_PROMPT)
-prioritization_agent = LlmAgent("PrioritizationAgent", model=MODEL_NAME, instruction=PRIORITIZATION_PROMPT)
-okr_agent = LlmAgent("OKRAgent", model=MODEL_NAME, instruction=OKR_PROMPT)
-planner_agent = LlmAgent("PlannerAgent", model=MODEL_NAME, instruction=PLANNER_PROMPT)
-report_writer_agent = LlmAgent("ReportWriterAgent", model=MODEL_NAME, instruction=REPORT_PROMPT)
-evaluation_agent = LlmAgent("EvaluatorAgent", model=EVAL_MODEL, instruction=EVALUATOR_PROMPT)
-reviewer_agent = LlmAgent("ReviewerAgent", model=EVAL_MODEL, instruction=REVIEWER_PROMPT)
+
+input_parser_agent = LlmAgent(
+    name="InputParserAgent",
+    model=MODEL_NAME,
+    instruction=INPUT_PARSER_PROMPT,
+)
+
+market_agent = LlmAgent(
+    name="MarketAnalysisAgent",
+    model=MODEL_NAME,
+    instruction=MARKET_ANALYSIS_PROMPT,
+)
+
+crazy_agent = LlmAgent(
+    name="CrazyIdeaAgent",
+    model=MODEL_NAME,
+    instruction=CRAZY_IDEA_PROMPT,
+)
+
+idea_cooker_agent = LlmAgent(
+    name="IdeaCookerAgent",
+    model=MODEL_NAME,
+    instruction=IDEA_COOKER_PROMPT,
+)
+
+theme_epic_agent = LlmAgent(
+    name="ThemeEpicAgent",
+    model=MODEL_NAME,
+    instruction=THEME_EPIC_PROMPT,
+)
+
+roadmap_agent = LlmAgent(
+    name="RoadmapAgent",
+    model=MODEL_NAME,
+    instruction=ROADMAP_PROMPT,
+)
+
+feature_agent = LlmAgent(
+    name="FeatureGenerationAgent",
+    model=MODEL_NAME,
+    instruction=FEATURE_PROMPT,
+)
+
+prioritization_agent = LlmAgent(
+    name="PrioritizationAgent",
+    model=MODEL_NAME,
+    instruction=PRIORITIZATION_PROMPT,
+)
+
+okr_agent = LlmAgent(
+    name="OKRAgent",
+    model=MODEL_NAME,
+    instruction=OKR_PROMPT,
+)
+
+planner_agent = LlmAgent(
+    name="PlannerAgent",
+    model=MODEL_NAME,
+    instruction=PLANNER_PROMPT,
+)
+
+report_writer_agent = LlmAgent(
+    name="ReportWriterAgent",
+    model=MODEL_NAME,
+    instruction=REPORT_PROMPT,
+)
+
+evaluation_agent = LlmAgent(
+    name="EvaluatorAgent",
+    model=EVAL_MODEL,
+    instruction=EVALUATOR_PROMPT,
+)
+
+reviewer_agent = LlmAgent(
+    name="ReviewerAgent",
+    model=EVAL_MODEL,
+    instruction=REVIEWER_PROMPT,
+)
 
 
 # ============================================================
