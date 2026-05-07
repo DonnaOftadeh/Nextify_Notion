@@ -63,7 +63,7 @@ INTERACTIVE_STAGE_IDS = [
 INPUT_PARSER_PROMPT = """
 You are the Input Parser Agent for Nextify.
 
-Your job is to turn the raw founder idea form into a clean, structured product brief.
+Your job is to turn the raw submitted idea form into a clean, structured product brief for the next product strategy agents.
 
 CRITICAL RULES:
 - Include the exact original form content first.
@@ -72,9 +72,8 @@ CRITICAL RULES:
 - Do not rewrite the original form fields in "Original Submitted Form".
 - Preserve the user's original idea.
 - Do not invent a different product.
-- Do not add MCP unless the user explicitly mentions MCP.
-- If the user says "like Notion and Streamlit", treat them as possible tools, not mandatory architecture.
-- Explain why you interpreted the idea this way using a short visible rationale.
+- Do not add implementation or architecture details that are not part of the submitted idea.
+- Explain the product logic briefly in a user-facing way.
 - Return markdown only.
 - Do not output JSON.
 - Do not use code fences.
@@ -105,45 +104,44 @@ Output exactly:
 ## Agent-Structured Interpretation
 
 ### Clean Product Concept
-<clear product concept>
+<clear product concept in 3–5 sentences>
 
 ### Product Type
-<classification>
+<classification, for example AI workspace, marketplace, hardware product, consumer app, B2B SaaS, etc.>
 
 ### Core Job-To-Be-Done
-<main job>
+<one clear sentence explaining what users hire this product to do>
+
+### Target User Interpretation
+<explain the primary and secondary users based only on the submitted form>
 
 ### MVP Boundary
-<smallest useful MVP>
+<5–7 bullets defining what belongs in the first version of this submitted idea>
 
-### What I Used From The Form
-- <mapping from exact form to interpretation>
+### Key Product Logic
+- <why this product should exist>
+- <why this user needs it>
+- <why this MVP scope makes sense>
+- <what should not be built first>
 
-### Inferred Assumptions
-- <Explicitly stated / Reasonably inferred / Needs validation>
-
-### What Is Not Assumed
-- MCP is not assumed unless explicitly mentioned.
-- Full multimodal support is not assumed for MVP unless explicitly prioritized.
-- Notion and Streamlit are treated as possible tools unless the form says they are mandatory.
-
-### Agent Reasoning Summary
-- <3–5 concise rationale bullets, not hidden chain-of-thought>
-
-### Confidence Level
-<High / Medium / Low plus one sentence>
+### Key Assumptions
+- <assumption>
+- <assumption>
+- <assumption>
 
 ### Key Risks
-- <risks>
+- <risk>
+- <risk>
+- <risk>
 
 ### Missing Information / Clarifying Questions
-- <questions>
+- <question>
+- <question>
+- <question>
 
 ### Next Agent Input
-<source-of-truth summary for Brainstorm Parallel>
+<short source-of-truth summary for Brainstorm Parallel>
 """
-
-
 MARKET_ANALYSIS_PROMPT = """
 You are the MarketAnalysisAgent for Nextify.
 
@@ -855,10 +853,6 @@ Text-first input → parsed brief → brainstorm → prioritization → roadmap 
 - Reasonably inferred: trust and versioning matter.
 - Needs validation: exact first integration and first output type.
 
-### What Is Not Assumed
-- MCP is not assumed unless explicitly mentioned.
-- Full multimodal support is not assumed for MVP.
-- Notion and Streamlit are not treated as mandatory production architecture unless confirmed.
 
 ### Agent Reasoning Summary
 - The form emphasizes messy input transformation.
@@ -877,7 +871,6 @@ Medium-high.
 ### Missing Information / Clarifying Questions
 - Which first output should be generated?
 - Which first input type matters most?
-- Is Notion required or optional?
 
 ### Next Agent Input
 Generate market-grounded and creative product directions for this PM copilot.
