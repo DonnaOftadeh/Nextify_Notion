@@ -28,7 +28,7 @@ def _init_gemini():
     if not key:
         raise RuntimeError("GEMINI_API_KEY not set")
     genai.configure(api_key=key)
-    model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-pro-latest")
+    model_name = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
     _GEMINI = genai.GenerativeModel(model_name)
     return _GEMINI
 

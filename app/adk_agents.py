@@ -38,8 +38,8 @@ from google.genai import types
 # CONFIG
 # ============================================================
 
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
-EVAL_MODEL = os.getenv("GEMINI_EVAL_MODEL", "gemini-2.5-flash-lite")
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+EVAL_MODEL = os.getenv("GEMINI_EVAL_MODEL", "gemini-3.1-flash-lite")
 APP_NAME = "nextify_interactive_adk_app"
 
 INTERACTIVE_STAGE_IDS = [
