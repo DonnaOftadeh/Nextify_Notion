@@ -1379,7 +1379,14 @@ REVISION QUALITY
 
 A good revision must:
 
-- directly fix the judge's material criticisms;
+- directly resolve EVERY materially actionable criticism from the LLM judge;
+- treat judge Improvement Priorities as required revision tasks;
+- resolve items under Critical Weaknesses;
+- resolve or explicitly flag Unsupported or Unverified Claims;
+- address Missing Evidence through evidence requirements, assumptions,
+  validation tasks, or removal of unsupported claims;
+- resolve Contradictions or Misalignments;
+- improve the artifact toward the judge's stated 8/10 requirements where feasible;
 - visibly apply human feedback;
 - preserve useful content from the current version;
 - remove generic filler and repetition;
@@ -1389,7 +1396,17 @@ A good revision must:
 - make claims proportionate to the available evidence;
 - remain consistent with the selected stage's required format.
 
+The revised output MUST be materially different when the judge identified
+material weaknesses.
+
 Do not merely rephrase the original output.
+
+Do not return the original artifact unchanged when judge feedback contains
+actionable criticism.
+
+If a judge comment cannot be resolved because required evidence is unavailable,
+explicitly convert it into an assumption, evidence gap, validation requirement,
+open question, or risk inside the revised artifact.
 
 Do not make the output longer unless the added detail improves decisions.
 
@@ -2541,10 +2558,60 @@ async def run_interactive_reviewer_adk(
     if human_feedback:
         input_text += f"""
 
-# NON-NEGOTIABLE USER FEEDBACK TO APPLY
+# NON-NEGOTIABLE HUMAN FEEDBACK TO APPLY
+
 {human_feedback}
 
-You must visibly apply this feedback in the revised output.
+REQUIREMENTS:
+- Apply every actionable human comment.
+- Do not ignore or partially apply requested changes.
+- The revised artifact must visibly reflect the feedback.
+"""
+
+    if judge_feedback:
+        input_text += f"""
+
+# NON-NEGOTIABLE JUDGE CRITIQUE TO APPLY
+
+{judge_feedback}
+
+CRITICAL REVISION INSTRUCTION:
+
+You are not being asked to review the judge feedback.
+You are being asked to REWRITE the current artifact so that the judge's
+material criticisms are actually resolved.
+
+You MUST:
+
+1. Read every section of the judge critique.
+2. Identify every actionable weakness, unsupported claim, evidence gap,
+   contradiction, feasibility concern, scope problem, prioritization issue,
+   missing risk, missing assumption, and improvement priority.
+3. Apply every materially relevant judge comment to the regenerated artifact.
+4. Remove or rewrite unsupported claims rather than leaving them unchanged.
+5. Add missing risks, assumptions, trade-offs, evidence requirements,
+   validation steps, or prioritization logic where the judge requested them.
+6. Resolve contradictions with the founder input and accepted previous stages.
+7. Preserve strong content that the judge explicitly considered valid.
+8. Preserve the required format for this STAGE_KEY.
+9. Do NOT simply paraphrase the old output.
+10. Do NOT return the same output unless the judge explicitly found no
+    material improvements necessary.
+11. Do NOT include the judge report itself in the final artifact.
+12. Return only the fully revised stage artifact.
+
+Before producing the final answer, internally verify that every material
+judge criticism has been addressed.
+
+If a judge recommendation cannot be applied because evidence is unavailable,
+do not ignore it. Instead represent it explicitly as:
+- an assumption,
+- an evidence gap,
+- a validation requirement,
+- an open question,
+- or a risk.
+
+The goal is a materially improved second version, not a cosmetic rewrite.
 """
 
     try:
